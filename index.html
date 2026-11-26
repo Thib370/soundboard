@@ -33,6 +33,7 @@
 </section>
 <details id="teams"><summary>Advanced Teams settings</summary>
  <div class="row"><button id="tLaunch">Launch Chrome for Teams</button><button id="tConn">Connect</button><label><input type="checkbox" id="tListen"> Listen for mentions</label><label><input type="checkbox" id="tSelf" checked> Ignore my own name</label></div>
+ <div class="row"><label title="Optional. Sets PLAYWRIGHT_MCP_EXTENSION_TOKEN for the plugin so the browser extension connects without asking. Stored only in this PC's config.json.">Plugin token <input id="tToken" type="password" size="22" placeholder="optional"></label></div>
  <div class="row"><label>Aliases <input id="tAlias" size="28" value="Thib, Thibault, Thibu"></label><label>My Teams name <input id="tMe" size="16" placeholder="Thibault Havard"></label></div>
  <div class="row"><label>Reply folder <select id="tFolder"></select></label><label>Popup (s) <input id="tTimeout" type="number" min="5" max="60" value="15" style="width:4em"></label><label>Cooldown (s) <input id="tCool" type="number" min="5" max="300" value="30" style="width:4em"></label></div>
  <p id="tStatus" class="msg"></p>

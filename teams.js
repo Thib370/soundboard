@@ -44,11 +44,12 @@ class Teams {
     const port = cfg.bridgePort || 8931, brave = ['C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe', process.env.LOCALAPPDATA + '\\BraveSoftware\\Brave-Browser\\Application\\brave.exe'].find(p => fs.existsSync(p));
     const args = ['-y', '@playwright/mcp@latest', '--port', String(port), ...(cfg.bridgeArgs ? cfg.bridgeArgs.split(' ') : ['--extension']), ...(brave && !cfg.bridgeArgs ? ['--executable-path', brave] : [])];
     this.set('connected', 'Starting the Playwright plugin (approve the connection in the browser if asked)…');
-    this.proc = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', args, { shell: process.platform === 'win32', windowsHide: true, env: process.env, stdio: 'ignore', detached: process.platform !== 'win32' });
-    this.proc.on('exit', () => { if (this.mcp) { this.mcp = null; clearInterval(this.timer); this.set('disconnected', 'Plugin process stopped'); } });
+    this.proc = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', args, { shell: process.platform === 'win32', windowsHide: true, env: { ...process.env, ...(cfg.bridgeToken ? { PLAYWRIGHT_MCP_EXTENSION_TOKEN: cfg.bridgeToken } : {}) }, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
+    this.out = ''; const grab = d => { this.out = (this.out + d).slice(-600); }; this.proc.stdout.on('data', grab); this.proc.stderr.on('data', grab);
+    this.proc.on('exit', () => { if (this.mcp) { this.mcp = null; clearInterval(this.timer); this.set('disconnected', 'Plugin process stopped: ' + (String(this.out).trim().split('\n').pop() || 'no output').slice(0, 160)); } });
     this.mcp = new Mcp(`http://127.0.0.1:${port}/mcp`);
-    for (let i = 0; i < 40; i++) { try { await this.mcp.init(); this.tabOk = false; this.timer = setInterval(() => this.tick().catch(() => {}), 1000); return true; } catch { await new Promise(r => setTimeout(r, 1500)); if (!this.proc) break; } }
-    await this.disconnect(); this.set('disconnected', 'Could not start the Playwright plugin (needs Node/npx and the extension in the browser)'); return false;
+    for (let i = 0; i < 40; i++) { try { await this.mcp.init(); this.tabOk = false; this.timer = setInterval(() => this.tick().catch(() => {}), 1000); return true; } catch { await new Promise(r => setTimeout(r, 1500)); if (!this.proc || !this.mcp) break; } }
+    const why = String(this.out || '').trim().split('\n').pop() || ''; await this.disconnect(); this.set('disconnected', 'Could not start the Playwright plugin' + (why ? ': ' + why.slice(0, 160) : ' (needs Node/npx and the extension in the browser)')); return false;
   }
   async bridgeLines() {
     if (!this.tabOk) {
@@ -72,6 +73,10 @@ class Teams {
   findPage() { const re = new RegExp(this.cfg.urlMatch || 'teams\\.(microsoft|cloud\\.microsoft)|mcas\\.ms', 'i'); for (const c of this.browser.contexts()) for (const p of c.pages()) if (re.test(p.url())) return p; return null; }
   async tick() {
     if (!this.mcp && !this.browser) return;
+    if (this.busy) { if (this.mcp && Date.now() - this.busy > 5000) this.set('connected', 'Waiting for the browser extension: approve the connection (select the Teams tab) in your browser'); return; }
+    this.busy = Date.now(); try { await this.tick2(); } finally { this.busy = 0; }
+  }
+  async tick2() {
     let lines;
     if (this.mcp) lines = await this.bridgeLines();
     else { if (!this.browser) return;

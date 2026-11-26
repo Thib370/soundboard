@@ -99,11 +99,11 @@ $('view').onclick = () => { cfg.settings.list = !cfg.settings.list; save(); rend
 const T = () => (cfg.teams ||= { aliases: 'Thib, Thibault, Thibu', ignoreSelf: true, cooldown: 30, timeout: 15, replyFolder: '', listen: false, self: '' });
 let runMode = 'cdp';
 const tcfg = () => ({ ...T(), endpoint: 'http://127.0.0.1:9222', mode: runMode });
-const tSave = () => { const t = T(); t.aliases = $('tAlias').value; t.self = $('tMe').value; t.ignoreSelf = $('tSelf').checked; t.listen = $('tListen').checked; t.replyFolder = $('tFolder').value; t.timeout = +$('tTimeout').value || 15; t.cooldown = +$('tCool').value || 30; save(); window.api.teamsConfig(tcfg()); };
+const tSave = () => { const t = T(); t.aliases = $('tAlias').value; t.bridgeToken = $('tToken').value.trim(); t.self = $('tMe').value; t.ignoreSelf = $('tSelf').checked; t.listen = $('tListen').checked; t.replyFolder = $('tFolder').value; t.timeout = +$('tTimeout').value || 15; t.cooldown = +$('tCool').value || 30; save(); window.api.teamsConfig(tcfg()); };
 function tInit() {
-  const t = T(); $('tAlias').value = t.aliases; $('tMe').value = t.self || ''; $('tSelf').checked = t.ignoreSelf !== false; $('tListen').checked = !!t.listen; $('tTimeout').value = t.timeout; $('tCool').value = t.cooldown;
+  const t = T(); $('tAlias').value = t.aliases; $('tToken').value = t.bridgeToken || ''; $('tMe').value = t.self || ''; $('tSelf').checked = t.ignoreSelf !== false; $('tListen').checked = !!t.listen; $('tTimeout').value = t.timeout; $('tCool').value = t.cooldown;
   $('tFolder').innerHTML = '<option value="">Unsorted</option>' + cfg.folders.map(f => `<option>${f.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</option>`).join(''); $('tFolder').value = t.replyFolder || '';
-  ['tAlias', 'tMe', 'tSelf', 'tListen', 'tFolder', 'tTimeout', 'tCool'].forEach(id => $(id).onchange = tSave);
+  ['tAlias', 'tToken', 'tMe', 'tSelf', 'tListen', 'tFolder', 'tTimeout', 'tCool'].forEach(id => $(id).onchange = tSave);
 }
 let tOn = false;
 $('tConn').onclick = async () => { runMode = 'cdp'; if (tOn) { await window.api.teamsDisconnect(); tOn = false; $('tConn').textContent = 'Connect'; return; } tSave(); tOn = await window.api.teamsConnect(tcfg()); $('tConn').textContent = tOn ? 'Disconnect' : 'Connect'; };
