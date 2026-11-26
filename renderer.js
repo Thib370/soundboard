@@ -204,3 +204,31 @@ function frame() {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+
+// Voice capture: toggle recording (button or Ctrl+Alt+V), encode 16 kHz mono WAV, send to the main process (Whisper + router).
+let vRec = null;
+const vStat = (t, cls) => { $('vStatus').textContent = t; $('vStatus').className = 'hint ' + (cls || ''); };
+async function vStart() {
+  try {
+    const id = $('micIn').value, stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: id && id !== 'default' ? { exact: id } : undefined, echoCancellation: true, noiseSuppression: true } });
+    const ctx = new AudioContext(), src = ctx.createMediaStreamSource(stream), proc = ctx.createScriptProcessor(4096, 1, 1), chunks = [];
+    proc.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0))); src.connect(proc); proc.connect(ctx.destination);
+    vRec = { stream, ctx, proc, chunks, timer: setTimeout(vStop, 12000) }; $('vBtn').classList.add('rec'); $('vBtn').textContent = '⏹ Listening… (click to stop)'; vStat('Listening…', 'thinking');
+  } catch (e) { vStat('Mic error: ' + e.message); }
+}
+function vStop() {
+  const r = vRec; if (!r) return; vRec = null; clearTimeout(r.timer); $('vBtn').classList.remove('rec'); $('vBtn').textContent = '🎙 Voice command';
+  r.proc.disconnect(); r.stream.getTracks().forEach(t => t.stop());
+  const n = r.chunks.reduce((a, c) => a + c.length, 0), all = new Float32Array(n); let o = 0; for (const c of r.chunks) { all.set(c, o); o += c.length; }
+  const ratio = r.ctx.sampleRate / 16000, m = Math.floor(n / ratio), pcm = new Int16Array(m); r.ctx.close();
+  for (let i = 0; i < m; i++) pcm[i] = Math.max(-1, Math.min(1, all[Math.floor(i * ratio)])) * 32767;
+  if (m < 8000) return vStat('Too short, try again');
+  const buf = new ArrayBuffer(44 + m * 2), v = new DataView(buf), w = (p, s) => [...s].forEach((ch, i) => v.setUint8(p + i, ch.charCodeAt(0)));
+  w(0, 'RIFF'); v.setUint32(4, 36 + m * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 16000, true); v.setUint32(28, 32000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, m * 2, true);
+  new Int16Array(buf, 44).set(pcm); vStat('Transcribing…', 'thinking'); window.api.voiceAudio(buf);
+}
+const vToggle = () => vRec ? vStop() : vStart();
+$('vBtn').onclick = vToggle; window.api.onVoiceToggle(vToggle);
+$('vSend').onclick = () => { const t = $('vText').value.trim(); if (t) { window.api.voiceText(t); $('vText').value = ''; } };
+$('vText').onkeydown = e => { if (e.key === 'Enter') $('vSend').onclick(); };
+window.api.onVoiceStatus(s => vStat((s.state === 'confirm' ? '❓ ' : '') + (s.text && s.state === 'thinking' ? 'Heard: ' + s.text : s.msg || ''), s.state));

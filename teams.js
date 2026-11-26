@@ -138,6 +138,9 @@ class Teams {
     for (let i = 0; i < 60; i++) { if (await ev(() => !!document.querySelector('#microphone-button'))) return 'joined' + (r2 !== 'ok' ? ' (' + r2 + ')' : ''); await new Promise(r => setTimeout(r, 1000)); }
     throw new Error('Did not enter the call (lobby?)');
   }
+  async ev(fn, arg) { // evaluate fn(arg) in the Teams page, retrying across page navigations
+    for (let k = 0; ; k++) { try { return parseResult(await this.mcp.call('browser_evaluate', { function: `() => (${fn.toString()})(${JSON.stringify(arg)})` })); } catch (e) { if (k >= 20) throw e; await new Promise(r => setTimeout(r, 1000)); } }
+  }
   async setMute(wantMuted) {
     if (!this.mcp) throw new Error('plugin not connected');
     const r = parseResult(await this.mcp.call('browser_evaluate', { function: `() => { const b = document.getElementById('microphone-button'); if (!b) return 'no-call'; const muted = /r[ée]activer|unmute|activer le micro/i.test(b.getAttribute('aria-label') || ''); if (muted === ${!!wantMuted}) return 'same'; b.click(); return 'ok'; }` }));

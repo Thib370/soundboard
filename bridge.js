@@ -37,6 +37,7 @@ function startBridge({ getCfg, saveCfg, validId, onCommand, ports = [8790, 8791,
       if (m.t === 'ping') return send(ws, { t: 'pong', ts: Date.now() });
       if (m.t === 'mute') { onCommand({ t: 'mute', muted: !!m.muted }); return send(ws, { t: 'ack', id: 'mute', ok: true }); }
       if (m.t === 'leave') { onCommand({ t: 'leave' }); return send(ws, { t: 'ack', id: 'leave', ok: true }); }
+      if (m.t === 'voice') { if (typeof m.text !== 'string' || !m.text || m.text.length > 500) return send(ws, { t: 'error', code: 'bad-request' }); onCommand({ t: 'voice', text: m.text }); return send(ws, { t: 'ack', id: 'voice', ok: true }); }
       if (m.t === 'brief') { onCommand({ t: 'brief' }); return send(ws, { t: 'ack', id: 'brief', ok: true }); }
       if (m.t === 'join') { if (typeof m.title !== 'string' || !m.title || m.title.length > 80 || typeof m.id !== 'string' || !validId(m.id)) return send(ws, { t: 'error', code: 'bad-request' }); onCommand({ t: 'join', title: m.title, id: m.id, delay: Math.min(60, Math.max(0, +m.delay || 5)), leaveAfter: Math.min(120, Math.max(0, +m.leaveAfter || 0)) }); return send(ws, { t: 'ack', id: 'join', ok: true }); }
       if (m.t === 'sync') return send(ws, snapshot());

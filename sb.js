@@ -10,9 +10,10 @@ const flag = (n, d) => { const i = rest.indexOf('--' + n); return i < 0 ? d : re
 const idOf = n => { const s = cfg.sounds.find(x => x.name.toLowerCase().includes(String(n).toLowerCase())); if (!s) { console.error('No sample matching ' + n); process.exit(2); } return s.id; };
 const msgs = { stop: { t: 'stop' }, mute: { t: 'mute', muted: true }, unmute: { t: 'mute', muted: false }, leave: { t: 'leave' }, brief: { t: 'brief' } };
 let msg = msgs[cmd];
+if (cmd === 'voice') msg = { t: 'voice', text: rest.join(' ') };
 if (cmd === 'play') msg = { t: 'play', id: idOf(rest[0]) };
 if (cmd === 'join') msg = { t: 'join', title: rest[0] || 'Daily meeting', id: idOf(flag('song', '')), delay: +flag('delay', 5), leaveAfter: +flag('leave-after', 0) };
-if (!msg && cmd !== 'status') { console.error('Usage: sb.js status|play <name>|stop|mute|unmute|leave|brief|join <title> --song X'); process.exit(1); }
+if (!msg && cmd !== 'status') { console.error('Usage: sb.js status|play <name>|voice "text"|stop|mute|unmute|leave|brief|join <title> --song X'); process.exit(1); }
 const ws = new WS('ws://127.0.0.1:' + (j.port || 8790) + '/', { origin: 'http://localhost:4200' });
 ws.on('error', () => { console.error('App not reachable (sb-restart)'); process.exit(1); });
 ws.on('open', () => ws.send(JSON.stringify({ t: 'auth', token: j.token })));

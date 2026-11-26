@@ -85,3 +85,7 @@ The app's routing diagram confirms it: the yellow line should read `Discord/Team
 - Windows only for real routing; WSL/Linux has no equivalent virtual device here.
 - URL import has no start/end trim (would need `ffmpeg`).
 - Download only audio you have the right to use.
+
+## Voice commands (local)
+Ctrl+Alt+V (or the 🎙 button) starts/stops recording the selected real mic → local Whisper (`%APPDATA%\soundboard-mic\whisper`: `Release\whisper-cli.exe` from whisper.cpp v1.8.2 + `ggml-base.bin`) → command parser (regex, Ollama fallback) → router → connector (`connectors/teams.js`; `connectors/discord.js` is a slot).
+Examples: "in the guignole chat say hello", "play MIAOU", "mute", "unmute", "leave", "join the daily meeting". Chat send, join and leave are read back (Windows voice, your headphones) and wait for a spoken "yes". Typed commands: the box under the button, or `node sb.js voice "text"`. Log: `voice.log`.

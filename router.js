@@ -1,0 +1,41 @@
+// Router: spoken/typed text -> intent -> connector action. Platform-agnostic: works with any connector exposing
+// listChats / sendMessage / join / leave / setMute. Irreversible actions (chat send, join, leave) always wait for a spoken "yes".
+const { parse, parseLLM, yesNo } = require('./voice.js');
+const short = n => { const p = String(n).split(' | ').map(x => x.trim()).filter(Boolean); return p.length > 1 ? p[1] : p[0] || ''; };
+function createRouter({ getConnector, speak, play, stop, sounds, status, model }) {
+  let pending = null;
+  const ask = (label, run) => { pending = { run, label, exp: Date.now() + 20000 }; status({ state: 'confirm', msg: label }); return speak(label + ' Say yes or no.'); };
+  const say = msg => { status({ state: 'idle', msg }); return speak(msg); };
+  async function execute(it) {
+    const c = getConnector(); if (!c) return say('No platform connected.');
+    switch (it.action) {
+      case 'chat': {
+        const hits = await c.listChats(it.target);
+        if (!hits.length) return say('No chat matches ' + it.target + '.');
+        if (hits.length > 1) return say('Several chats match: ' + hits.slice(0, 4).map(h => short(h.name)).join(', ') + '. Be more specific.');
+        const h = hits[0]; return ask('Send to ' + short(h.name) + ': ' + it.text + '?', async () => { await c.sendMessage(h.index, it.text, true); return say('Sent.'); });
+      }
+      case 'play': { const s = sounds().find(x => x.name.toLowerCase().includes(String(it.name).toLowerCase())); return s ? (play(s.id), status({ state: 'idle', msg: 'Playing ' + s.name })) : say('No sample named ' + it.name + '.'); }
+      case 'stop': stop(); return status({ state: 'idle', msg: 'Stopped' });
+      case 'mute': case 'unmute': return say(await c.setMute(it.action === 'mute'));
+      case 'leave': return ask('Leave the call?', async () => say(await c.leave()));
+      case 'join': return ask('Join ' + (it.target || 'the meeting') + '?', async () => { say('Joining.'); return say(await c.join(it.target || 'Daily meeting')); });
+      default: return say('I did not understand.');
+    }
+  }
+  async function handleText(text) {
+    status({ state: 'thinking', text });
+    try {
+      if (pending && Date.now() < pending.exp) {
+        const yn = yesNo(text);
+        if (yn === null) return say('Please say yes or no.');
+        const p = pending; pending = null; if (!yn) return say('Cancelled.'); return await p.run();
+      }
+      pending = null;
+      const it = parse(text) || await parseLLM(text, model, sounds().map(s => s.name)).catch(() => null);
+      return it ? await execute(it) : say('I did not understand: ' + text);
+    } catch (e) { pending = null; return say('Failed: ' + String(e.message).slice(0, 100)); }
+  }
+  return { handleText, cancel: () => { pending = null; } };
+}
+module.exports = { createRouter, short };

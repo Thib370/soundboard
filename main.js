@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, globalShortcut } = require('electron');
 const fs = require('fs'), path = require('path'), { spawn } = require('child_process');
-const { Teams } = require('./teams.js');
+const { TeamsConnector: Teams } = require('./connectors/teams.js');
+const voice = require('./voice.js'), { createRouter } = require('./router.js');
 const { startBridge } = require('./bridge.js');
 let bridge = null;
 let win, popup = null, popupTimer = null, lastPopup = 0; const data = () => app.getPath('userData');
@@ -24,6 +25,7 @@ async function ensureYtdlp(force) {
 }
 function registerHotkeys(sounds) {
   globalShortcut.unregisterAll(); if (popup) popupKeys(true);
+  globalShortcut.register('Control+Alt+V', () => win.webContents.send('voice-toggle'));
   globalShortcut.register('Control+Alt+0', () => win.webContents.send('stop'));
   sounds.forEach((s, i) => { if (i < 9) globalShortcut.register('Control+Alt+' + (i + 1), () => win.webContents.send('play', s.id)); });
 }
@@ -51,6 +53,16 @@ function showPopup(men) {
   } catch (e) { closePopup(); }
 }
 const teams = new Teams((ev, d) => { if (ev === 'status') send('teams-status', d); else if (ev === 'mention') showPopup(d); else if (ev === 'call') send('teams-call', d); });
+const router = createRouter({ getConnector: () => teams, speak: t => voice.speak(t), play: id => send('play', id), stop: () => send('stop'), sounds: () => load().sounds || [], status: s => { send('voice-status', s); try { fs.appendFileSync(path.join(data(), 'voice.log'), new Date().toISOString() + ' ' + s.state + ' ' + (s.msg || s.text || '') + '\n'); } catch {} }, model: (load().teams || {}).model });
+async function voiceAudio(buf) {
+  try {
+    const f = path.join(app.getPath('temp'), 'sb-voice-' + Date.now() + '.wav'); fs.writeFileSync(f, Buffer.from(buf));
+    send('voice-status', { state: 'thinking', msg: 'Transcribing…' });
+    const text = await voice.transcribe(data(), f, (load().voice || {}).lang); fs.unlink(f, () => {});
+    if (!text) return send('voice-status', { state: 'idle', msg: 'Heard nothing' });
+    await router.handleText(text);
+  } catch (e) { send('voice-status', { state: 'idle', msg: 'Voice error: ' + e.message.slice(0, 100) }); }
+}
 const { summarize } = require('./brief.js');
 // Join a meeting and play one sample, only after Damy approves in a native dialog (nothing reaches a call without approval).
 let joinBusy = false;
@@ -89,8 +101,10 @@ app.whenReady().then(() => {
     getCfg: () => { try { return { bridge: JSON.parse(fs.readFileSync(bf(), 'utf8')) }; } catch { return {}; } },
     saveCfg: c => { fs.mkdirSync(data(), { recursive: true }); const t = bf() + '.tmp'; fs.writeFileSync(t, JSON.stringify(c.bridge, null, 1)); fs.renameSync(t, bf()); },
     validId: id => load().sounds.some(s => s.id === id),
-    onCommand: c => c.t === 'stop' ? send('stop') : c.t === 'leave' ? teams.leave().then(r => send('teams-log', { t: Date.now(), msg: r }), e => send('teams-log', { t: Date.now(), msg: 'Leave failed: ' + e.message })) : c.t === 'mute' ? teams.setMute(c.muted).then(r => send('teams-log', { t: Date.now(), msg: r }), e => send('teams-log', { t: Date.now(), msg: 'Mute failed: ' + e.message })) : c.t === 'brief' ? runBrief() : c.t === 'join' ? joinAndPlay(c) : send('play', c.id),
+    onCommand: c => c.t === 'stop' ? send('stop') : c.t === 'voice' ? router.handleText(c.text) : c.t === 'leave' ? teams.leave().then(r => send('teams-log', { t: Date.now(), msg: r }), e => send('teams-log', { t: Date.now(), msg: 'Leave failed: ' + e.message })) : c.t === 'mute' ? teams.setMute(c.muted).then(r => send('teams-log', { t: Date.now(), msg: r }), e => send('teams-log', { t: Date.now(), msg: 'Mute failed: ' + e.message })) : c.t === 'brief' ? runBrief() : c.t === 'join' ? joinAndPlay(c) : send('play', c.id),
   });
+  ipcMain.on('voice-audio', (_, buf) => voiceAudio(buf));
+  ipcMain.on('voice-text', (_, t) => router.handleText(String(t).slice(0, 500)));
   ipcMain.on('bridge-push', (_, s) => bridge && bridge.push(s));
   ipcMain.handle('bridge-info', () => bridge.info());
   ipcMain.handle('bridge-rotate', () => bridge.rotate());
