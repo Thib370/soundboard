@@ -1,5 +1,5 @@
 import { Engine } from './engine.js';
-const mark = () => document.querySelectorAll('#grid .snd').forEach(d => { const p = d.querySelector('.play'), on = eng.isPlaying(p.dataset.id); p.classList.toggle('on', on); d.querySelector('.stopone').hidden = !on; });
+const mark = () => { document.querySelectorAll('#grid .snd').forEach(d => { const p = d.querySelector('.play'), on = eng.isPlaying(p.dataset.id); p.classList.toggle('on', on); d.querySelector('.stopone').hidden = !on; }); document.querySelectorAll('#callPad .play').forEach(b => b.classList.toggle('on', eng.isPlaying(b.dataset.id))); };
 const $ = id => document.getElementById(id), eng = new Engine(); eng.onChange = () => mark();
 let cfg = { sounds: [], settings: {} };
 const save = () => window.api.save(cfg), say = t => $('msg').textContent = t;
@@ -35,7 +35,7 @@ function render() {
       let done = false; const fin = ok => { if (done) return; done = true; const n = inp.value.trim(); if (ok && n) { s.name = n; save(); } render(); };
       inp.onkeydown = e => { if (e.key === 'Enter') fin(true); else if (e.key === 'Escape') fin(false); }; inp.onblur = () => fin(true);
     };
-    const x = document.createElement('button'); x.className = 'del'; x.textContent = 'remove'; x.onclick = () => { eng.stop(s.id); cfg.sounds.splice(cfg.sounds.indexOf(s), 1); save(); render(); };
+    const x = document.createElement('button'); x.className = 'del'; x.textContent = 'remove'; x.onclick = () => { if (!confirm('Remove "' + s.name + '" from the list?')) return; eng.stop(s.id); cfg.sounds.splice(cfg.sounds.indexOf(s), 1); save(); render(); };
     d.append(b, gl, t, mv, rn, x); $('grid').append(d);
   });
   if (!shown.length) $('grid').innerHTML = '<p class="hint">No sounds here.</p>';
@@ -135,18 +135,29 @@ function callCard() {
   $('callMuted').hidden = !(c.inCall && c.muted);
   if (!c.inCall) return;
   const folder = T().replyFolder || '', list = cfg.sounds.filter(s => (s.folder || '') === folder);
-  (list.length ? list : cfg.sounds).slice(0, 12).forEach(s => { const b = document.createElement('button'); b.className = 'play'; b.textContent = s.name; b.onclick = () => eng.play(s.id); pad.append(b); });
+  (list.length ? list : cfg.sounds).slice(0, 12).forEach(s => { const b = document.createElement('button'); b.className = 'play'; b.textContent = s.name; b.dataset.id = s.id; if (eng.isPlaying(s.id)) b.classList.add('on'); b.onclick = () => eng.play(s.id); pad.append(b); });
 }
 window.api.onTeamsCall(c => { callState = c; callCard(); });
 window.api.onPlay(id => eng.play(id)); window.api.onStop(() => eng.stopAll());
 init();
 
+$('editTog').onclick = () => { document.body.classList.toggle('edit'); $('editTog').classList.toggle('on', document.body.classList.contains('edit')); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName)) eng.stopAll(); });
 // Live routing diagram: who plays, where it goes, and levels.
 const nameOf = id => cfg.sounds.find(s => s.id === id)?.name || id;
 const optName = sel => { if (sel.value) return sel.selectedOptions[0]?.textContent || sel.value; const d = [...sel.options].find(o => o.value === 'default'); return d ? d.textContent : 'System default'; };
 // Name Discord/Teams must select as input: the cable's recording side ("CABLE Input" -> "CABLE Output").
 const discordIn = name => /input/i.test(name) && /cable|virtual/i.test(name) ? name.replace(/Input/i, 'Output') : null;
+function air() {
+  const el = $('air'), send = eng.sendToMic, c = callState; let cls, txt, sub;
+  if (!send) { cls = 'off'; txt = 'MIC OFF'; sub = 'Sounds stay in your headphones'; }
+  else if (c.inCall && c.muted) { cls = 'muted'; txt = 'SEND ON · MUTED IN TEAMS'; sub = 'Nobody hears you until you unmute in Teams'; }
+  else if (c.inCall) { cls = 'live'; txt = 'ON AIR'; sub = 'Sounds are heard by the meeting'; }
+  else { cls = 'armed'; txt = 'SEND TO MIC ON'; sub = 'Sounds go to the virtual mic (Teams call not detected)'; }
+  el.className = cls; $('airTxt').textContent = txt; $('airSub').textContent = sub;
+}
 function frame() {
+  air();
   const ids = [...eng.byKey.keys()], mixOn = !!eng.mixOn, lv = { m: eng.level(eng.anMic), h: eng.level(eng.anMon), i: mixOn ? eng.level(eng.anIn) : 0 };
   $('playing').textContent = ids.length ? ids.map(nameOf).join(', ') : 'idle';
   $('inName').textContent = (mixOn ? 'in: ' : 'off · ') + optName($('micIn'));

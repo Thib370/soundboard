@@ -43,7 +43,7 @@ app.whenReady().then(() => {
   ipcMain.handle('teams-config', (_, c) => { if (teams.cfg) teams.cfg = { ...teams.cfg, ...c }; });
   ipcMain.handle('teams-launch', () => { const exe = findChrome(); if (!exe) throw new Error('Chrome not found'); spawn(exe, ['--remote-debugging-port=9222', '--user-data-dir=' + path.join(data(), 'chrome-teams'), 'https://teams.microsoft.com'], { detached: true, stdio: 'ignore' }).unref(); return true; });
   ipcMain.on('popup-choice', (_, id) => choose(id));
-  win = new BrowserWindow({ width: 900, height: 700, autoHideMenuBar: true, webPreferences: { preload: path.join(__dirname, 'preload.js') } });
+  win = new BrowserWindow({ width: 680, height: 900, autoHideMenuBar: true, webPreferences: { preload: path.join(__dirname, 'preload.js') } });
   win.loadFile('index.html');
   ipcMain.handle('load', () => load());
   ipcMain.handle('save', (_, cfg) => { fs.mkdirSync(data(), { recursive: true }); fs.writeFileSync(cfgFile(), JSON.stringify(cfg, null, 1)); registerHotkeys(cfg.sounds || []); });

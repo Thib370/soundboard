@@ -19,6 +19,9 @@ Three cards: **Teams** (connection status + Run / Plugin buttons), **Alerts** (m
 One click: **▶ Run Teams** (always visible above the panel) starts Chrome if needed, connects and turns listening on; **■ Stop Teams** disconnects. First time: sign in to Teams in that Chrome, join a call and turn on live captions. Manual controls (Launch / Connect / Listen) are in the panel.
 **🔌 Connect via Playwright plugin** instead uses your own browser (Brave) through the *Playwright MCP Bridge* extension: the app starts `npx @playwright/mcp --extension` and reads the Teams tab through it (needs Node/npx and the extension; approve the connection in the browser if asked, or paste the extension token in *Advanced Teams settings > Plugin token*, stored only in your local config). Same popup, same approval. Caption selectors may need updating when Teams changes its page. Voice approve/cancel (local) is not built yet.
 
+## Live-call layout
+A sticky bar always shows the send state: **MIC OFF** (grey), **ON AIR** (pulsing red: send is on and Teams shows you in a call and unmuted), **SEND ON · MUTED IN TEAMS** (amber), **SEND TO MIC ON** (Teams call not detected). The big red **STOP** (bottom right) and the **Esc** key cut all sounds. Per-sound boost / move / rename / remove are hidden until you click **✎ Edit** (remove asks for confirmation). Double-clicks on a sample are ignored for 250 ms. Setup, import and folders are in a collapsed section at the bottom.
+
 ## Requirements
 - Windows 10/11
 - [Node.js](https://nodejs.org) 22 or newer (tested with 26)

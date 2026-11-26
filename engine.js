@@ -20,6 +20,7 @@ export class Engine {
   isPlaying(key) { return (this.byKey.get(key)?.size || 0) > 0; }
   // Toggle: clicking a playing sound stops it, otherwise starts it.
   play(key) {
+    const now = Date.now(); if (now - (this.lastPlay?.get(key) || 0) < 250) return; (this.lastPlay ||= new Map()).set(key, now); // ignore double-clicks
     if (this.isPlaying(key)) return this.stop(key);
     const buf = this.buffers.get(key); if (!buf) return;
     const targets = [];
