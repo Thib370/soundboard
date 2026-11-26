@@ -28,7 +28,7 @@ export class Engine {
     const set = new Set(); this.byKey.set(key, set);
     for (const [ctx, gain] of targets) {
       if (ctx.state === 'suspended') ctx.resume();
-      const s = ctx.createBufferSource(); s.buffer = buf; const g = ctx.createGain(); g.gain.value = this.gains.get(key) ?? 1; s.connect(g); g.connect(gain); s._g = g;
+      const s = ctx.createBufferSource(); s.buffer = buf; const g = ctx.createGain(); g.gain.value = this.gains.get(key) ?? 1.2; s.connect(g); g.connect(gain); s._g = g;
       set.add(s); this.active.add(s);
       s.onended = () => { set.delete(s); this.active.delete(s); if (!set.size) this.byKey.delete(key); this.onChange(); };
       s.start();
