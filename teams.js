@@ -138,6 +138,12 @@ class Teams {
     for (let i = 0; i < 60; i++) { if (await ev(() => !!document.querySelector('#microphone-button'))) return 'joined' + (r2 !== 'ok' ? ' (' + r2 + ')' : ''); await new Promise(r => setTimeout(r, 1000)); }
     throw new Error('Did not enter the call (lobby?)');
   }
+  async setMute(wantMuted) {
+    if (!this.mcp) throw new Error('plugin not connected');
+    const r = parseResult(await this.mcp.call('browser_evaluate', { function: `() => { const b = document.getElementById('microphone-button'); if (!b) return 'no-call'; const muted = /r[ée]activer|unmute|activer le micro/i.test(b.getAttribute('aria-label') || ''); if (muted === ${!!wantMuted}) return 'same'; b.click(); return 'ok'; }` }));
+    if (r === 'no-call') throw new Error('not in a call');
+    return r === 'same' ? 'mute state already as wanted' : (wantMuted ? 'muted' : 'unmuted');
+  }
   async leave() {
     if (!this.mcp) throw new Error('plugin not connected');
     const r = parseResult(await this.mcp.call('browser_evaluate', { function: `() => { const b = document.querySelector('#hangup-button, [data-tid="hangup-button"], button[aria-label*="Raccrocher"], button[aria-label*="Leave"], button[aria-label*="Quitter"]'); if (!b) return 'no-button'; b.click(); return 'ok'; }` }));

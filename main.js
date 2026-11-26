@@ -89,7 +89,7 @@ app.whenReady().then(() => {
     getCfg: () => { try { return { bridge: JSON.parse(fs.readFileSync(bf(), 'utf8')) }; } catch { return {}; } },
     saveCfg: c => { fs.mkdirSync(data(), { recursive: true }); const t = bf() + '.tmp'; fs.writeFileSync(t, JSON.stringify(c.bridge, null, 1)); fs.renameSync(t, bf()); },
     validId: id => load().sounds.some(s => s.id === id),
-    onCommand: c => c.t === 'stop' ? send('stop') : c.t === 'brief' ? runBrief() : c.t === 'join' ? joinAndPlay(c) : send('play', c.id),
+    onCommand: c => c.t === 'stop' ? send('stop') : c.t === 'leave' ? teams.leave().then(r => send('teams-log', { t: Date.now(), msg: r }), e => send('teams-log', { t: Date.now(), msg: 'Leave failed: ' + e.message })) : c.t === 'mute' ? teams.setMute(c.muted).then(r => send('teams-log', { t: Date.now(), msg: r }), e => send('teams-log', { t: Date.now(), msg: 'Mute failed: ' + e.message })) : c.t === 'brief' ? runBrief() : c.t === 'join' ? joinAndPlay(c) : send('play', c.id),
   });
   ipcMain.on('bridge-push', (_, s) => bridge && bridge.push(s));
   ipcMain.handle('bridge-info', () => bridge.info());
