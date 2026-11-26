@@ -3,7 +3,23 @@
   "version": "0.1.0",
   "description": "Soundboard that plays into a virtual mic (Discord/Teams)",
   "main": "main.js",
-  "scripts": { "start": "electron .", "dist": "electron-builder --win portable" },
-  "devDependencies": { "electron": "^33.0.0", "electron-builder": "^25.0.0" },
-  "build": { "appId": "local.soundboardmic", "files": ["*.js", "*.html", "*.css"], "win": { "target": "portable" } }
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^45.5.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "local.soundboardmic",
+    "files": [
+      "*.js",
+      "*.html",
+      "*.css"
+    ],
+    "win": {
+      "target": "portable"
+    }
+  }
 }
