@@ -107,7 +107,22 @@ function tInit() {
 let tOn = false;
 $('tConn').onclick = async () => { if (tOn) { await window.api.teamsDisconnect(); tOn = false; $('tConn').textContent = 'Connect'; return; } tSave(); tOn = await window.api.teamsConnect(tcfg()); $('tConn').textContent = tOn ? 'Disconnect' : 'Connect'; };
 $('tLaunch').onclick = async () => { try { await window.api.teamsLaunch(); say('Chrome started. Sign in to Teams, join a call, then click Connect.'); } catch (e) { say(e.message); } };
-window.api.onTeamsStatus(s => { const b = $('tBadge'); b.textContent = '● ' + ({ disconnected: 'off', connected: 'connected', captions: 'listening' }[s.state] || s.state); b.className = 'badge ' + s.state; $('tStatus').textContent = s.detail || ''; if (s.state === 'disconnected') { tOn = false; $('tConn').textContent = 'Connect'; } });
+// One click: connect (launching Chrome first if the debug port is closed), then listen.
+let running = false;
+async function runTeams() {
+  if (running) { running = false; $('tListen').checked = false; tSave(); await window.api.teamsDisconnect(); tOn = false; $('tRun').textContent = '▶ Run Teams'; $('tConn').textContent = 'Connect'; return; }
+  running = true; $('tRun').textContent = '■ Stop Teams'; $('teams').open = true; $('tListen').checked = true; tSave();
+  $('tStatus').textContent = $('tStatus2').textContent = 'Starting…'; let ok = await window.api.teamsConnect(tcfg());
+  if (!ok) { try { await window.api.teamsLaunch(); } catch (e) { running = false; $('tRun').textContent = '▶ Run Teams'; const m = e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''); $('tStatus').textContent = $('tStatus2').textContent = m; say(m); return; }
+    $('tStatus').textContent = $('tStatus2').textContent = 'Chrome started: sign in to Teams and join a call. Connecting…';
+    for (let i = 0; i < 20 && running && !ok; i++) { await new Promise(r => setTimeout(r, 3000)); if (running) ok = await window.api.teamsConnect(tcfg()); }
+  }
+  if (!running) return; if (!ok) { running = false; $('tRun').textContent = '▶ Run Teams'; return; }
+  tOn = true; $('tConn').textContent = 'Disconnect';
+}
+$('tRun').onclick = runTeams;
+window.api.onTeamsStatus(s => { const b = $('tBadge'); b.textContent = '● ' + ({ disconnected: 'off', connected: 'connected', captions: 'listening' }[s.state] || s.state); b.className = 'badge ' + s.state; $('tStatus').textContent = $('tStatus2').textContent = s.detail || ''; if (s.detail === 'Chrome closed' && running) { running = false; $('tRun').textContent = '▶ Run Teams'; }
+  if (s.state === 'disconnected' && !running) { tOn = false; $('tConn').textContent = 'Connect'; } });
 window.api.onTeamsLog(l => { const d = document.createElement('div'); d.textContent = new Date(l.t).toLocaleTimeString() + ' ' + l.who + ': ' + l.msg; $('tLog').prepend(d); while ($('tLog').children.length > 10) $('tLog').lastChild.remove(); });
 window.api.onPlay(id => eng.play(id)); window.api.onStop(() => eng.stopAll());
 init();
