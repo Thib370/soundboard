@@ -12,17 +12,27 @@ class TeamsConnector extends Teams {
   }
   async allChats() { this.need(); const n = await this.ev(NAMES, null); return Array.isArray(n) ? n : []; }
   /** Opens the chat (by exact index from listChats) and types the text; sends only when send=true. Returns the chat title. */
-  async sendMessage(index, text, send = true) {
+  async sendMessage(index, text, send = true, expect = '') {
     this.need(); if (!text || text.length > 2000) throw new Error('Invalid message length');
-    const opened = await this.ev(async i => { const e = document.querySelectorAll('[role=treeitem][aria-level="2"]')[i]; if (!e) return 'no-chat'; e.click(); await new Promise(r => setTimeout(r, 2500)); return document.title; }, index);
+    const opened = await this.ev(async (hit) => { const nm = x => (x.getAttribute('aria-labelledby') || '').split(' ').filter(Boolean).map(i => (document.getElementById(i) || {}).innerText || '').join(' | ').replace(/\s*\|\s*(\|\s*)+/g, ' | '); const e = [...document.querySelectorAll('[role=treeitem][aria-level="2"]')].find(x => nm(x) === hit.name); if (!e) return 'no-chat'; e.click(); await new Promise(r => setTimeout(r, 2500)); return document.title; }, typeof index === 'object' ? index : { name: String(index) });
     if (opened === 'no-chat') throw new Error('Chat not found (list changed)');
+    const nz = s => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    if (expect && !nz(opened).includes(nz(expect).slice(0, 12))) throw new Error('Opened the wrong chat (' + opened + ')'); // list order changed between search and click: never type into another chat
     await this.ev(async () => { for (let i = 0; i < 20 && !document.querySelector('[data-tid=ckeditor]'); i++) await new Promise(r => setTimeout(r, 500)); return 1; });
     for (let k = 0; ; k++) { try { await this.mcp.call('browser_type', { target: '[data-tid=ckeditor]', text }); break; } catch (e) { if (k >= 2) throw e; await new Promise(r => setTimeout(r, 1500)); } } // Teams sometimes needs a moment after switching chats
     const typed = await this.ev(t => { const ck = document.querySelector('[data-tid=ckeditor]'); return ck && ck.innerText.trim() === t.trim() ? 'ok' : 'mismatch'; }, text);
     if (typed !== 'ok') throw new Error('Could not type the message (' + typed + ')');
     if (!send) return opened;
+    const count = () => this.ev(x => document.body.innerText.split(x).length - 1, text), before = await count();
     const sent = await this.ev(() => { const b = document.querySelector('[data-tid="sendMessageCommands-send"]'); if (!b) return 'no-send'; b.click(); return 'ok'; });
     if (sent !== 'ok') throw new Error('Send button not found');
+    for (let i = 0; i < 16; i++) { // confirm: composer emptied and the text now appears once more in the conversation
+      await new Promise(r => setTimeout(r, 500));
+      const empty = await this.ev(() => (document.querySelector('[data-tid=ckeditor]') || { innerText: '' }).innerText.trim() === '');
+      if (empty && (await count()) > before) return opened;
+      if (i === 5 && !empty) await this.mcp.call('browser_press_key', { key: 'Enter' }).catch(() => {}); // button click ignored: try Enter
+    }
+    throw new Error('Message not confirmed as sent in ' + opened);
     return opened;
   }
 }

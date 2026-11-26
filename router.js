@@ -14,7 +14,7 @@ function createRouter({ getConnector, speak, play, stop, sounds, status, model, 
         const hits = await c.listChats(it.target);
         if (!hits.length) return say('No chat matches ' + it.target + '.');
         if (hits.length > 1) return say('Several chats match: ' + hits.slice(0, 4).map(h => short(h.name)).join(', ') + '. Be more specific.');
-        const h = hits[0]; return ask('Send to ' + short(h.name) + ': ' + it.text + '?', async () => { await c.sendMessage(h.index, it.text, true); return say('Sent.'); });
+        const h = hits[0]; return ask('Send to ' + short(h.name) + ': ' + it.text + '?', async () => { await c.sendMessage(h, it.text, true, short(h.name)); return say('Sent.'); });
       }
       case 'play': { const s = sounds().find(x => x.name.toLowerCase().includes(String(it.name).toLowerCase())); return s ? (play(s.id), status({ state: 'idle', msg: 'Playing ' + s.name })) : say('No sample named ' + it.name + '.'); }
       case 'stop': stop(); return status({ state: 'idle', msg: 'Stopped' });
