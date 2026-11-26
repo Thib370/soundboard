@@ -2,8 +2,8 @@
 const { spawn, execFile } = require('child_process'), fs = require('fs'), path = require('path');
 const norm = s => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-function transcribe(dataDir, wavPath, lang, hint) {
-  const dir = path.join(dataDir, 'whisper'), cli = path.join(dir, 'Release', 'whisper-cli.exe'), model = ['ggml-small.bin', 'ggml-base.bin'].map(f => path.join(dir, f)).find(f => fs.existsSync(f) && fs.statSync(f).size > 1e8) || path.join(dir, 'ggml-base.bin'), prompt = 'Commands: envoie, dis, dans le chat, in the chat say, joue, play, mute, unmute, raccroche, leave, join. ' + (hint || '');
+function transcribe(dataDir, wavPath, lang, hint, fast) {
+  const dir = path.join(dataDir, 'whisper'), cli = path.join(dir, 'Release', 'whisper-cli.exe'), model = (fast ? ['ggml-base.bin'] : ['ggml-small.bin', 'ggml-base.bin']).map(f => path.join(dir, f)).find(f => fs.existsSync(f) && fs.statSync(f).size > 1e8) || path.join(dir, 'ggml-base.bin'), prompt = fast ? (hint || '') : 'Commands: envoie, dis, dans le chat, in the chat say, joue, play, mute, unmute, raccroche, leave, join. ' + (hint || '');
   if (!fs.existsSync(cli) || !fs.existsSync(model)) return Promise.reject(new Error('Whisper not installed in ' + dir));
   const run = l => new Promise((res, rej) => execFile(cli, ['-m', model, '-f', wavPath, '-l', l, '-nt', '-np', '--prompt', prompt], { windowsHide: true, timeout: 60000 }, (e, out) => e ? rej(e) : res(String(out).trim())));
   return run(lang || 'auto').then(t => /[^\u0000-\u024F\u2000-\u206F]/.test(t) ? run('fr') : t); // auto-detect picked a non-Latin language on a short clip: retry in French
@@ -31,11 +31,11 @@ function parse(text) {
 const yesNo = text => { const n = norm(text).replace(/[^a-z ]/g, ' '); return /\b(yes|yeah|yep|oui|ok|okay|send|envoie|confirm|go)\b/.test(n) ? true : /\b(no|non|cancel|annule|stop|nope)\b/.test(n) ? false : null; };
 
 /** Local LLM fallback when the regex parser does not understand the sentence. */
-async function parseLLM(text, model, names, chats) {
+async function parseLLM(text, model, names, chats, url) {
   const sys = 'You convert a (possibly mis-transcribed, French or English) spoken command into JSON. Actions: {"action":"chat","target":"<chat name>","text":"<message>"}, {"action":"play","name":"<sample>"}, {"action":"stop"}, {"action":"mute"}, {"action":"unmute"}, {"action":"leave"}, {"action":"join","target":"<meeting>"}, {"action":"none"}. '
     + 'Sending a message to a chat/group/person = chat. Fix speech-recognition errors using the known names. Known chats: ' + (chats || []).slice(0, 40).join('; ') + '. Known samples: ' + names.slice(0, 40).join(', ') + '. '
     + 'Examples: "envoie dans les guignols à Kekar" -> {"action":"chat","target":"guignols","text":"Kekar"}; "dis bonjour dans le daily" -> {"action":"chat","target":"daily","text":"bonjour"}; "message to Jerome: ok" -> {"action":"chat","target":"Jerome","text":"ok"}. Reply with JSON only.';
-  const r = await fetch('http://localhost:11434/api/chat', { method: 'POST', body: JSON.stringify({ model: model || 'qwen2.5:7b', stream: false, format: 'json', messages: [{ role: 'system', content: sys }, { role: 'user', content: text }], options: { temperature: 0 } }), signal: AbortSignal.timeout(30000) });
+  const r = await fetch((url || 'http://localhost:11434') + '/api/chat', { method: 'POST', body: JSON.stringify({ model: model || 'qwen2.5:7b', stream: false, format: 'json', messages: [{ role: 'system', content: sys }, { role: 'user', content: text }], options: { temperature: 0 } }), signal: AbortSignal.timeout(30000) });
   const o = JSON.parse((await r.json()).message.content); return o && o.action && o.action !== 'none' ? o : null;
 }
 

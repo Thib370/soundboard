@@ -2,10 +2,10 @@
 // listChats / sendMessage / join / leave / setMute. Irreversible actions (chat send, join, leave) always wait for a spoken "yes".
 const { parse, parseLLM, yesNo } = require('./voice.js');
 const short = n => { const p = String(n).split(' | ').map(x => x.trim()).filter(Boolean); return p.length > 1 ? p[1] : p[0] || ''; };
-function createRouter({ getConnector, speak, play, stop, sounds, status, model }) {
-  let pending = null;
+function createRouter({ getConnector, speak, play, stop, sounds, status, model, listen, llmUrl }) {
+  let pending = null, retries = 0;
   // 60 s to answer, counted after the readback
-  const ask = (label, run) => { pending = { run, label, exp: Date.now() + 120000 }; status({ state: 'confirm', msg: label }); return speak(label + ' Say yes or no.').then(() => { if (pending) pending.exp = Date.now() + 60000; }); };
+  const ask = (label, run) => { retries = 0; pending = { run, label, exp: Date.now() + 120000 }; status({ state: 'confirm', msg: label }); return speak(label + ' Say yes or no.').then(() => { if (pending) { pending.exp = Date.now() + 60000; listen && listen(); } }); };
   const say = msg => { status({ state: 'idle', msg }); return speak(msg); };
   async function execute(it) {
     const c = getConnector(); if (!c) return say('No platform connected.');
@@ -29,14 +29,14 @@ function createRouter({ getConnector, speak, play, stop, sounds, status, model }
     try {
       if (pending && Date.now() < pending.exp) {
         const yn = yesNo(text);
-        if (yn === null) return say('Please say yes or no.');
+        if (yn === null) { if (retries++ < 1) { status({ state: 'confirm', msg: 'Say yes or no' }); return speak('Please say yes or no.').then(() => listen && listen()); } pending = null; return say('Cancelled.'); }
         const p = pending; pending = null; if (!yn) return say('Cancelled.'); return await p.run();
       }
       pending = null;
-      const c = getConnector(), it = parse(text) || await parseLLM(text, model, sounds().map(s => s.name), c && c.allChats ? (await c.allChats().catch(() => [])).map(short) : []).catch(() => null);
+      const c = getConnector(), it = parse(text) || await parseLLM(text, model, sounds().map(s => s.name), c && c.allChats ? (await c.allChats().catch(() => [])).map(short) : [], llmUrl && llmUrl()).catch(() => null);
       return it ? await execute(it) : say('I did not understand: ' + text);
-    } catch (e) { pending = null; return say('Failed: ' + String(e.message).slice(0, 100)); }
+    } catch (e) { pending = null; return say('Failed: ' + String(e.message).replace(/\x1b\[[0-9;]*m/g, '').replace(/\s+/g, ' ').slice(0, 600)); }
   }
-  return { handleText, cancel: () => { pending = null; } };
+  return { handleText, isPending: () => !!pending && Date.now() < pending.exp, cancel: () => { if (!pending) return; pending = null; return say('Cancelled.'); } };
 }
 module.exports = { createRouter, short };

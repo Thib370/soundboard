@@ -17,7 +17,7 @@ class TeamsConnector extends Teams {
     const opened = await this.ev(async i => { const e = document.querySelectorAll('[role=treeitem][aria-level="2"]')[i]; if (!e) return 'no-chat'; e.click(); await new Promise(r => setTimeout(r, 2500)); return document.title; }, index);
     if (opened === 'no-chat') throw new Error('Chat not found (list changed)');
     await this.ev(async () => { for (let i = 0; i < 20 && !document.querySelector('[data-tid=ckeditor]'); i++) await new Promise(r => setTimeout(r, 500)); return 1; });
-    await this.mcp.call('browser_type', { target: '[data-tid=ckeditor]', text });
+    for (let k = 0; ; k++) { try { await this.mcp.call('browser_type', { target: '[data-tid=ckeditor]', text }); break; } catch (e) { if (k >= 2) throw e; await new Promise(r => setTimeout(r, 1500)); } } // Teams sometimes needs a moment after switching chats
     const typed = await this.ev(t => { const ck = document.querySelector('[data-tid=ckeditor]'); return ck && ck.innerText.trim() === t.trim() ? 'ok' : 'mismatch'; }, text);
     if (typed !== 'ok') throw new Error('Could not type the message (' + typed + ')');
     if (!send) return opened;

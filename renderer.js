@@ -205,30 +205,44 @@ function frame() {
 }
 requestAnimationFrame(frame);
 
-// Voice capture: toggle recording (button or Ctrl+Alt+V), encode 16 kHz mono WAV, send to the main process (Whisper + router).
+// Voice capture: toggle recording (button / Ctrl+Alt+V), or auto-listen after a spoken question (stops on silence).
+// Encodes 16 kHz mono WAV (padded with silence) and sends it to the main process (Whisper + router).
 let vRec = null;
 const vStat = (t, cls) => { $('vStatus').textContent = t; $('vStatus').className = 'hint ' + (cls || ''); };
-async function vStart() {
+async function vStart(auto) {
+  if (vRec) return;
   try {
     const id = $('micIn').value, stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: id && id !== 'default' ? { exact: id } : undefined, echoCancellation: true, noiseSuppression: true } });
     const ctx = new AudioContext(), src = ctx.createMediaStreamSource(stream), proc = ctx.createScriptProcessor(4096, 1, 1), chunks = [];
-    proc.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0))); src.connect(proc); proc.connect(ctx.destination);
-    vRec = { stream, ctx, proc, chunks, timer: setTimeout(vStop, 12000) }; $('vBtn').classList.add('rec'); $('vBtn').textContent = '⏹ Listening… (click to stop)'; vStat('Listening…', 'thinking');
+    const r = { stream, ctx, proc, chunks, auto: !!auto, t0: Date.now(), floor: 0.01, speech: false, lastVoice: 0 };
+    proc.onaudioprocess = e => {
+      const d = new Float32Array(e.inputBuffer.getChannelData(0)); chunks.push(d);
+      let s = 0; for (const x of d) s += x * x; const rms = Math.sqrt(s / d.length), now = Date.now();
+      if (now - r.t0 < 400) r.floor = Math.max(r.floor, rms * 1.5); // calibrate on the first 0.4 s
+      else if (rms > Math.max(0.02, r.floor * 2)) { r.speech = true; r.lastVoice = now; }
+      if (r.auto) { if (!r.speech && now - r.t0 > 7000) vStop(); else if (r.speech && now - r.lastVoice > 1000) vStop(); } // auto mode: give up after 7 s of silence, end 1 s after speech
+    };
+    src.connect(proc); proc.connect(ctx.destination);
+    r.timer = setTimeout(vStop, auto ? 9000 : 12000); vRec = r; $('vBtn').classList.add('rec'); $('vBtn').textContent = '⏹ Listening… (click to stop)'; vStat(auto ? 'Listening for your answer…' : 'Listening…', 'thinking');
   } catch (e) { vStat('Mic error: ' + e.message); }
 }
 function vStop() {
   const r = vRec; if (!r) return; vRec = null; clearTimeout(r.timer); $('vBtn').classList.remove('rec'); $('vBtn').textContent = '🎙 Voice command';
   r.proc.disconnect(); r.stream.getTracks().forEach(t => t.stop());
+  if (r.auto && !r.speech) { r.ctx.close(); return window.api.voiceSilence(); }
   const n = r.chunks.reduce((a, c) => a + c.length, 0), all = new Float32Array(n); let o = 0; for (const c of r.chunks) { all.set(c, o); o += c.length; }
-  const ratio = r.ctx.sampleRate / 16000, m = Math.floor(n / ratio), pcm = new Int16Array(m); r.ctx.close();
-  for (let i = 0; i < m; i++) pcm[i] = Math.max(-1, Math.min(1, all[Math.floor(i * ratio)])) * 32767;
-  if (m < 8000) return vStat('Too short, try again');
+  const ratio = r.ctx.sampleRate / 16000, m0 = Math.floor(n / ratio), pad = 6400, m = m0 + 2 * pad, pcm = new Int16Array(m); r.ctx.close();
+  for (let i = 0; i < m0; i++) pcm[pad + i] = Math.max(-1, Math.min(1, all[Math.floor(i * ratio)])) * 32767;
+  if (!r.speech && m0 < 8000) return vStat('Too short, try again');
   const buf = new ArrayBuffer(44 + m * 2), v = new DataView(buf), w = (p, s) => [...s].forEach((ch, i) => v.setUint8(p + i, ch.charCodeAt(0)));
   w(0, 'RIFF'); v.setUint32(4, 36 + m * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 16000, true); v.setUint32(28, 32000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, m * 2, true);
   new Int16Array(buf, 44).set(pcm); vStat('Transcribing…', 'thinking'); window.api.voiceAudio(buf);
 }
-const vToggle = () => vRec ? vStop() : vStart();
-$('vBtn').onclick = vToggle; window.api.onVoiceToggle(vToggle);
+function vDrop() { const r = vRec; if (!r) return; vRec = null; clearTimeout(r.timer); $('vBtn').classList.remove('rec'); $('vBtn').textContent = '🎙 Voice command'; r.proc.disconnect(); r.stream.getTracks().forEach(t => t.stop()); r.ctx.close(); } // discard a recording (answer given by button/keyboard)
+const vToggle = () => vRec ? vStop() : vStart(false);
+$('vBtn').onclick = vToggle; window.api.onVoiceToggle(vToggle); window.api.onVoiceListen(() => vStart(true));
 $('vSend').onclick = () => { const t = $('vText').value.trim(); if (t) { window.api.voiceText(t); $('vText').value = ''; } };
 $('vText').onkeydown = e => { if (e.key === 'Enter') $('vSend').onclick(); };
-window.api.onVoiceStatus(s => vStat((s.state === 'confirm' ? '❓ ' : '') + (s.text && s.state === 'thinking' ? 'Heard: ' + s.text : s.msg || ''), s.state));
+$('vYes').onclick = () => window.api.voiceText('yes'); $('vNo').onclick = () => window.api.voiceText('no');
+document.addEventListener('keydown', e => { if (!$('vYN').hidden && document.activeElement !== $('vText')) { if (e.key === 'Enter') { e.preventDefault(); $('vYes').onclick(); } else if (e.key === 'Escape') $('vNo').onclick(); } });
+window.api.onVoiceStatus(s => { $('vYN').hidden = s.state !== 'confirm'; if (s.state === 'thinking' && vRec && vRec.auto && s.text) vDrop(); vStat((s.state === 'confirm' ? '❓ ' : '') + (s.text && s.state === 'thinking' ? 'Heard: ' + s.text : s.msg || ''), s.state); });

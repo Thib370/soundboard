@@ -53,12 +53,12 @@ function showPopup(men) {
   } catch (e) { closePopup(); }
 }
 const teams = new Teams((ev, d) => { if (ev === 'status') send('teams-status', d); else if (ev === 'mention') showPopup(d); else if (ev === 'call') send('teams-call', d); });
-const router = createRouter({ getConnector: () => teams, speak: t => voice.speak(t), play: id => send('play', id), stop: () => send('stop'), sounds: () => load().sounds || [], status: s => { send('voice-status', s); try { fs.appendFileSync(path.join(data(), 'voice.log'), new Date().toISOString() + ' ' + s.state + ' ' + (s.msg || s.text || '') + '\n'); } catch {} }, model: (load().teams || {}).model });
+const router = createRouter({ getConnector: () => teams, speak: t => voice.speak(t), play: id => send('play', id), stop: () => send('stop'), sounds: () => load().sounds || [], status: s => { send('voice-status', s); try { fs.appendFileSync(path.join(data(), 'voice.log'), new Date().toISOString() + ' ' + s.state + ' ' + (s.msg || s.text || '') + '\n'); } catch {} }, model: (load().teams || {}).model, listen: () => send('voice-listen'), llmUrl: () => (load().voice || {}).ollamaUrl });
 async function voiceAudio(buf) {
   try {
     const f = path.join(app.getPath('temp'), 'sb-voice-' + Date.now() + '.wav'); fs.writeFileSync(f, Buffer.from(buf));
     send('voice-status', { state: 'thinking', msg: 'Transcribing…' });
-    const text = await voice.transcribe(data(), f, (load().voice || {}).lang, 'Names: ' + (load().sounds || []).map(s => s.name).slice(0, 30).join(', ') + ', Guignols, Daily meeting.'); fs.unlink(f, () => {});
+    const text = await voice.transcribe(data(), f, (load().voice || {}).lang, router.isPending() ? 'yes, no, oui, non, ok, cancel, annule, send, envoie.' : 'Names: ' + (load().sounds || []).map(s => s.name).slice(0, 30).join(', ') + ', Guignols, Daily meeting.', router.isPending()); fs.unlink(f, () => {});
     if (!text) return send('voice-status', { state: 'idle', msg: 'Heard nothing' });
     await router.handleText(text);
   } catch (e) { send('voice-status', { state: 'idle', msg: 'Voice error: ' + e.message.slice(0, 100) }); }
@@ -104,6 +104,7 @@ app.whenReady().then(() => {
     onCommand: c => c.t === 'stop' ? send('stop') : c.t === 'voice' ? router.handleText(c.text) : c.t === 'leave' ? teams.leave().then(r => send('teams-log', { t: Date.now(), msg: r }), e => send('teams-log', { t: Date.now(), msg: 'Leave failed: ' + e.message })) : c.t === 'mute' ? teams.setMute(c.muted).then(r => send('teams-log', { t: Date.now(), msg: r }), e => send('teams-log', { t: Date.now(), msg: 'Mute failed: ' + e.message })) : c.t === 'brief' ? runBrief() : c.t === 'join' ? joinAndPlay(c) : send('play', c.id),
   });
   ipcMain.on('voice-audio', (_, buf) => voiceAudio(buf));
+  ipcMain.on('voice-silence', () => router.cancel());
   ipcMain.on('voice-text', (_, t) => router.handleText(String(t).slice(0, 500)));
   ipcMain.on('bridge-push', (_, s) => bridge && bridge.push(s));
   ipcMain.handle('bridge-info', () => bridge.info());
