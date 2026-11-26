@@ -10,6 +10,7 @@
 <section id="tCards">
  <div class="card brief" id="briefCard"><h3>☀ Morning brief <button id="briefGo" class="mini">refresh</button></h3><div id="briefNote" class="hint">Click ▶ Run Teams to load it.</div><div id="briefSum"></div><div id="briefUnread" class="blist"></div><div id="briefMeet" class="blist"></div></div>
  <div class="card"><h3>Teams</h3><div id="tState" class="big">● Not connected</div><div id="tStatus2" class="hint"></div>
+  <div id="plugHelp" class="hint help" hidden><b>First time? Connect Teams through Brave:</b><ol><li>In Brave, install the <b>Playwright MCP Bridge</b> extension (Chrome Web Store) and keep Brave open.</li><li>Open Teams in a Brave tab and sign in.</li><li>Click <b>▶ Run Teams</b>. When Brave asks, click <b>Connect</b> in the extension popup and pick the Teams tab.</li></ol>Only one program can use the extension at a time: close other tools that use it.</div>
   <div class="row"><button id="tRun" class="run">▶ Run Teams</button><button id="tPlug" class="run" title="Use the Playwright MCP Bridge extension in your own browser (Brave)">🔌 Plugin</button></div><span id="tBadge" hidden>● off</span></div>
  <div class="card"><h3>Alerts <button id="aClear" class="mini">clear</button></h3><div id="tLog" class="alerts"><span class="hint">No alerts. Messages addressed to you show here.</span></div></div>
  <div class="card"><h3>Current call</h3><div id="callInfo" class="hint">Not in a call.</div><div id="callMuted" class="warnline" hidden>Your Teams mic is muted: others won't hear the sample.</div><div id="callPad"></div></div>
