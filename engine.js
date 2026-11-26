@@ -2,7 +2,7 @@
 export class Engine {
   constructor() { this.micCtx = new AudioContext(); this.monCtx = new AudioContext();
     this.micGain = this.micCtx.createGain(); this.monGain = this.monCtx.createGain();
-    this.micBus = this.micCtx.createGain(); this.micGain.connect(this.micBus); this.micBus.connect(this.micCtx.destination); this.monGain.connect(this.monCtx.destination);
+    this.micBus = this.micCtx.createGain(); this.micGain.connect(this.micBus); this.limiter = this.micCtx.createDynamicsCompressor(); this.limiter.threshold.value = -2; this.limiter.knee.value = 0; this.limiter.ratio.value = 20; this.limiter.attack.value = 0.002; this.limiter.release.value = 0.1; this.micBus.connect(this.limiter); this.limiter.connect(this.micCtx.destination); this.gains = new Map(); this.monGain.connect(this.monCtx.destination);
     const an = c => { const a = c.createAnalyser(); a.fftSize = 512; return a; };
     this.anMic = an(this.micCtx); this.anMon = an(this.monCtx); this.anIn = an(this.micCtx);
     this.micBus.connect(this.anMic); this.monGain.connect(this.anMon);
@@ -28,7 +28,7 @@ export class Engine {
     const set = new Set(); this.byKey.set(key, set);
     for (const [ctx, gain] of targets) {
       if (ctx.state === 'suspended') ctx.resume();
-      const s = ctx.createBufferSource(); s.buffer = buf; s.connect(gain);
+      const s = ctx.createBufferSource(); s.buffer = buf; const g = ctx.createGain(); g.gain.value = this.gains.get(key) ?? 1; s.connect(g); g.connect(gain); s._g = g;
       set.add(s); this.active.add(s);
       s.onended = () => { set.delete(s); this.active.delete(s); if (!set.size) this.byKey.delete(key); this.onChange(); };
       s.start();
@@ -36,6 +36,8 @@ export class Engine {
     if (!set.size) this.byKey.delete(key);
     this.onChange();
   }
+  // Per-sound boost (1 = normal, up to 4); applies live to a playing sound. A limiter on the mic path avoids clipping.
+  setGain(key, v) { this.gains.set(key, v); (this.byKey.get(key) || []).forEach(s => s._g && (s._g.gain.value = v)); }
   stop(key) { (this.byKey.get(key) || []).forEach(s => { try { s.stop(); } catch {} }); }
   stopAll() { [...this.active].forEach(s => { try { s.stop(); } catch {} }); }
   async setMicMix(on, deviceId) {

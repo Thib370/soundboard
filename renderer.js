@@ -11,8 +11,11 @@ function render() {
     const d = document.createElement('div'); d.className = 'snd';
     const b = document.createElement('button'); b.className = 'play'; b.textContent = (i < 9 ? (i + 1) + '. ' : '') + s.name; b.onclick = () => eng.play(s.id); b.dataset.id = s.id; if (eng.isPlaying(s.id)) b.classList.add('on');
     const t = document.createElement('button'); t.className = 'stopone'; t.textContent = '■ stop'; t.hidden = !eng.isPlaying(s.id); t.onclick = () => eng.stop(s.id);
+    const gl = document.createElement('label'); gl.className = 'gain'; const gv = document.createElement('em'); const g = document.createElement('input');
+    g.type = 'range'; g.min = 0.2; g.max = 4; g.step = 0.1; g.value = s.gain ?? 1; gv.textContent = '×' + (+g.value).toFixed(1); eng.setGain(s.id, +g.value);
+    g.oninput = () => { s.gain = +g.value; gv.textContent = '×' + s.gain.toFixed(1); eng.setGain(s.id, s.gain); }; g.onchange = () => save(); gl.append('boost ', g, gv);
     const x = document.createElement('button'); x.className = 'del'; x.textContent = 'remove'; x.onclick = () => { eng.stop(s.id); cfg.sounds.splice(i, 1); save(); render(); };
-    d.append(b, t, x); $('grid').append(d);
+    d.append(b, gl, t, x); $('grid').append(d);
   });
 }
 async function addSound(name, path) { const s = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name, path }; await loadSound(s); cfg.sounds.push(s); await save(); render(); }
