@@ -97,9 +97,12 @@ class Teams {
       const hit = list.split('\n').map(l => l.match(/^- (\d+):.*\(([^)\s]+)\)/)).find(m => m && re.test(m[2]));
       if (!this.mcp) return null;
       if (!hit) {
-        if (!this.openedTeams) { this.openedTeams = true; this.set('connected', 'No Teams tab: opening Teams in Brave…'); try { await this.mcp.call('browser_tabs', { action: 'new', url: 'https://teams.cloud.microsoft.mcas.ms/' }); } catch {} return null; }
+        if (!this.openedTeams) { this.openedTeams = true; this.set('connected', 'No Teams tab: opening Teams in Brave…'); try { await this.mcp.call(/^- \d+:/m.test(list) ? 'browser_navigate' : 'browser_tabs', /^- \d+:/m.test(list) ? { url: 'https://teams.cloud.microsoft.mcas.ms/' } : { action: 'new', url: 'https://teams.cloud.microsoft.mcas.ms/' }); } catch {} return null; } // reuse the plugin's existing (blank) tab instead of opening another
         this.set('connected', 'No Teams tab found in the plugin browser (sign in to Teams there)'); return null; }
-      await this.mcp.call('browser_tabs', { action: 'select', index: +hit[1] }); this.tabOk = true;
+      const extra = list.split('\n').map(l => l.match(/^- (\d+):/)).filter(m => m && +m[1] !== +hit[1]).map(m => +m[1]).sort((a, b) => b - a);
+      for (const i of extra) { try { await this.mcp.call('browser_tabs', { action: 'close', index: i }); } catch {} } // keep a single tab in the plugin session
+      const l2 = extra.length ? await this.mcp.call('browser_tabs', { action: 'list' }) : list, h2 = l2.split('\n').map(l => l.match(/^- (\d+):.*\(([^)\s]+)\)/)).find(m => m && re.test(m[2]));
+      await this.mcp.call('browser_tabs', { action: 'select', index: +(h2 ? h2[1] : hit[1]) }); this.tabOk = true;
     }
     try { return parseResult(await this.mcp.call('browser_evaluate', { function: `() => (${READ.toString()})()` })); } catch (e) { this.tabOk = false; return null; }
   }
