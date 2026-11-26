@@ -77,7 +77,7 @@ class Teams {
     const gen = this.gen; const alive = () => gen === this.gen;
     if (/[&|<>^%"`;$]/.test(cfg.bridgeArgs || '')) { this.set('disconnected', 'Invalid plugin arguments'); return false; }
     const port = cfg.bridgePort || 8931, brave = ['C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe', process.env.LOCALAPPDATA + '\\BraveSoftware\\Brave-Browser\\Application\\brave.exe'].find(p => fs.existsSync(p));
-    const args = ['-y', '@playwright/mcp@latest', '--port', String(port), ...(cfg.bridgeArgs ? cfg.bridgeArgs.split(' ') : ['--extension']), ...(brave && !cfg.bridgeArgs ? ['--executable-path', brave] : [])];
+    const args = ['-y', '@playwright/mcp@latest', '--port', String(port), ...(cfg.bridgeArgs ? cfg.bridgeArgs.split(' ') : ['--extension']), ...(brave && !cfg.bridgeArgs ? ['--executable-path', process.platform === 'win32' ? '"' + brave + '"' : brave] : [])];
     this.set('connected', 'Starting the Playwright plugin (approve the connection in the browser if asked)…');
     this.proc = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', args, { shell: process.platform === 'win32', windowsHide: true, env: { ...process.env, ...(cfg.bridgeToken ? { PLAYWRIGHT_MCP_EXTENSION_TOKEN: cfg.bridgeToken } : {}) }, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
     this.out = ''; const grab = d => { this.out = (this.out + d).slice(-600); }; this.proc.stdout.on('data', grab); this.proc.stderr.on('data', grab);
