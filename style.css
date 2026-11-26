@@ -6,3 +6,4 @@ button{cursor:pointer}button:hover{background:#34343c}
 #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.6rem;margin-top:1rem}
 .snd{display:flex;flex-direction:column;gap:.3rem}.snd .play{padding:1rem .5rem;font-size:1rem;background:#4f46e5}
 .snd .del{font-size:.75rem;opacity:.7}.warn{color:#fbbf24}.msg{min-height:1.2em;color:#9ca3af}.hint{color:#777;font-size:.85rem}
+.snd .play.on{background:#16a34a}.snd .stopone{background:#b91c1c}

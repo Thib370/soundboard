@@ -1,5 +1,6 @@
 import { Engine } from './engine.js';
-const $ = id => document.getElementById(id), eng = new Engine();
+const mark = () => document.querySelectorAll('#grid .snd').forEach(d => { const p = d.querySelector('.play'), on = eng.isPlaying(p.dataset.id); p.classList.toggle('on', on); d.querySelector('.stopone').hidden = !on; });
+const $ = id => document.getElementById(id), eng = new Engine(); eng.onChange = () => mark();
 let cfg = { sounds: [], settings: {} };
 const save = () => window.api.save(cfg), say = t => $('msg').textContent = t;
 const fill = (sel, list, cur) => { sel.innerHTML = '<option value="">Default</option>' + list.map(d => `<option value="${d.deviceId}">${d.label || d.deviceId}</option>`).join(''); sel.value = cur || ''; };
@@ -8,9 +9,10 @@ function render() {
   $('grid').innerHTML = '';
   cfg.sounds.forEach((s, i) => {
     const d = document.createElement('div'); d.className = 'snd';
-    const b = document.createElement('button'); b.className = 'play'; b.textContent = (i < 9 ? (i + 1) + '. ' : '') + s.name; b.onclick = () => eng.play(s.id);
-    const x = document.createElement('button'); x.className = 'del'; x.textContent = 'remove'; x.onclick = () => { cfg.sounds.splice(i, 1); save(); render(); };
-    d.append(b, x); $('grid').append(d);
+    const b = document.createElement('button'); b.className = 'play'; b.textContent = (i < 9 ? (i + 1) + '. ' : '') + s.name; b.onclick = () => eng.play(s.id); b.dataset.id = s.id; if (eng.isPlaying(s.id)) b.classList.add('on');
+    const t = document.createElement('button'); t.className = 'stopone'; t.textContent = '■ stop'; t.hidden = !eng.isPlaying(s.id); t.onclick = () => eng.stop(s.id);
+    const x = document.createElement('button'); x.className = 'del'; x.textContent = 'remove'; x.onclick = () => { eng.stop(s.id); cfg.sounds.splice(i, 1); save(); render(); };
+    d.append(b, t, x); $('grid').append(d);
   });
 }
 async function addSound(name, path) { const s = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name, path }; await loadSound(s); cfg.sounds.push(s); await save(); render(); }
