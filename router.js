@@ -32,7 +32,7 @@ function createRouter({ getConnector, speak, play, stop, sounds, status, model }
         const p = pending; pending = null; if (!yn) return say('Cancelled.'); return await p.run();
       }
       pending = null;
-      const it = parse(text) || await parseLLM(text, model, sounds().map(s => s.name)).catch(() => null);
+      const c = getConnector(), it = parse(text) || await parseLLM(text, model, sounds().map(s => s.name), c && c.allChats ? (await c.allChats().catch(() => [])).map(short) : []).catch(() => null);
       return it ? await execute(it) : say('I did not understand: ' + text);
     } catch (e) { pending = null; return say('Failed: ' + String(e.message).slice(0, 100)); }
   }

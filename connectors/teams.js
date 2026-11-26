@@ -10,6 +10,7 @@ class TeamsConnector extends Teams {
     this.need(); const names = await this.ev(NAMES, null); if (!Array.isArray(names)) throw new Error('Chat list not available');
     return matchChats(names, query).map(i => ({ index: i, name: names[i] }));
   }
+  async allChats() { this.need(); const n = await this.ev(NAMES, null); return Array.isArray(n) ? n : []; }
   /** Opens the chat (by exact index from listChats) and types the text; sends only when send=true. Returns the chat title. */
   async sendMessage(index, text, send = true) {
     this.need(); if (!text || text.length > 2000) throw new Error('Invalid message length');

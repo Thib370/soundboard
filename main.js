@@ -58,7 +58,7 @@ async function voiceAudio(buf) {
   try {
     const f = path.join(app.getPath('temp'), 'sb-voice-' + Date.now() + '.wav'); fs.writeFileSync(f, Buffer.from(buf));
     send('voice-status', { state: 'thinking', msg: 'Transcribing…' });
-    const text = await voice.transcribe(data(), f, (load().voice || {}).lang); fs.unlink(f, () => {});
+    const text = await voice.transcribe(data(), f, (load().voice || {}).lang, 'Names: ' + (load().sounds || []).map(s => s.name).slice(0, 30).join(', ') + ', Guignols, Daily meeting.'); fs.unlink(f, () => {});
     if (!text) return send('voice-status', { state: 'idle', msg: 'Heard nothing' });
     await router.handleText(text);
   } catch (e) { send('voice-status', { state: 'idle', msg: 'Voice error: ' + e.message.slice(0, 100) }); }
