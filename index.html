@@ -14,6 +14,17 @@
  <label>Headphones <select id="monOut"></select></label>
  <label>Real mic <select id="micIn"></select></label>
 </section>
+<section id="flow">
+ <div class="col"><h3>Sources</h3>
+  <div class="node" id="nSounds"><b>Sounds</b><span id="playing">idle</span></div>
+  <div class="node" id="nIn"><b>Real mic</b><span id="inName">off</span><i class="bar"><u id="mIn"></u></i></div></div>
+ <div class="arr" id="a1">➜</div>
+ <div class="col"><h3>Soundboard</h3><div class="node" id="nApp"><b>Mixer</b><span>volume <em id="volTxt"></em></span></div></div>
+ <div class="arr" id="a2">➜</div>
+ <div class="col"><h3>Outputs</h3>
+  <div class="node" id="nMic"><b>Virtual mic → Discord/Teams</b><span id="micName"></span><i class="bar"><u id="mMic"></u></i></div>
+  <div class="node" id="nMon"><b>Headphones</b><span id="monName"></span><i class="bar"><u id="mMon"></u></i></div></div>
+</section>
 <p id="warn" class="warn" hidden>No virtual cable found (e.g. "CABLE Input"). Install VB-Cable, then restart. See README.</p>
 <section class="row">
  <button id="add">+ Add files</button>

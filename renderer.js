@@ -42,3 +42,21 @@ $('imp').onclick = async () => { const u = $('url').value.trim(); if (!u) return
 $('upd').onclick = async () => { say('Updating yt-dlp…'); try { await window.api.updateYtdlp(); say('yt-dlp updated'); } catch (e) { say(e.message); } };
 window.api.onPlay(id => eng.play(id)); window.api.onStop(() => eng.stopAll());
 init();
+
+// Live routing diagram: who plays, where it goes, and levels.
+const nameOf = id => cfg.sounds.find(s => s.id === id)?.name || id;
+const optName = sel => sel.selectedOptions[0]?.textContent || 'Default';
+function frame() {
+  const ids = [...eng.byKey.keys()], mixOn = !!eng.micStream, lv = { m: eng.level(eng.anMic), h: eng.level(eng.anMon), i: mixOn ? eng.level(eng.anIn) : 0 };
+  $('playing').textContent = ids.length ? ids.map(nameOf).join(', ') : 'idle';
+  $('inName').textContent = mixOn ? optName($('micIn')) : 'off';
+  $('volTxt').textContent = Math.round($('vol').value * 100) + '%';
+  $('micName').textContent = eng.sendToMic ? optName($('micOut')) : 'disabled (tick Send to mic)';
+  $('monName').textContent = eng.monitor ? optName($('monOut')) : 'disabled';
+  $('mMic').style.width = lv.m * 100 + '%'; $('mMon').style.width = lv.h * 100 + '%'; $('mIn').style.width = lv.i * 100 + '%';
+  $('nSounds').classList.toggle('live', ids.length > 0); $('nIn').classList.toggle('live', mixOn); $('nApp').classList.toggle('live', ids.length > 0 || mixOn);
+  $('nMic').classList.toggle('live', eng.sendToMic && (lv.m > 0.01 || ids.length > 0)); $('nMon').classList.toggle('live', eng.monitor && ids.length > 0);
+  $('a1').classList.toggle('live', ids.length > 0 || mixOn); $('a2').classList.toggle('live', ids.length > 0 || mixOn);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);

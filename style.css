@@ -7,3 +7,9 @@ button{cursor:pointer}button:hover{background:#34343c}
 .snd{display:flex;flex-direction:column;gap:.3rem}.snd .play{padding:1rem .5rem;font-size:1rem;background:#4f46e5}
 .snd .del{font-size:.75rem;opacity:.7}.warn{color:#fbbf24}.msg{min-height:1.2em;color:#9ca3af}.hint{color:#777;font-size:.85rem}
 .snd .play.on{background:#16a34a}.snd .stopone{background:#b91c1c}
+#flow{display:flex;gap:.5rem;justify-content:center;align-items:center;margin:1rem 0;text-align:left}
+#flow .col{display:flex;flex-direction:column;gap:.5rem;flex:1}#flow h3{margin:0;font-size:.75rem;color:#888;text-transform:uppercase;text-align:center}
+.node{background:#202026;border:1px solid #444;border-radius:8px;padding:.5rem;display:flex;flex-direction:column;gap:.25rem;font-size:.8rem;opacity:.5}
+.node.live{opacity:1;border-color:#16a34a}.node span{color:#aaa;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar{display:block;height:6px;background:#111;border-radius:3px;overflow:hidden}.bar u{display:block;height:100%;width:0;background:#16a34a}
+.arr{font-size:1.6rem;color:#444}.arr.live{color:#16a34a}
