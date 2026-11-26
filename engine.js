@@ -2,7 +2,7 @@
 export class Engine {
   constructor() { this.micCtx = new AudioContext(); this.monCtx = new AudioContext();
     this.micGain = this.micCtx.createGain(); this.monGain = this.monCtx.createGain();
-    this.micBus = this.micCtx.createGain(); this.micGain.connect(this.micBus); this.limiter = this.micCtx.createDynamicsCompressor(); this.limiter.threshold.value = -2; this.limiter.knee.value = 0; this.limiter.ratio.value = 20; this.limiter.attack.value = 0.002; this.limiter.release.value = 0.1; this.micBus.connect(this.limiter); this.limiter.connect(this.micCtx.destination); this.gains = new Map(); this.monGain.connect(this.monCtx.destination);
+    this.micBus = this.micCtx.createGain(); this.mixGate = this.micCtx.createGain(); this.mixGate.connect(this.micBus); this.micGain.connect(this.micBus); this.limiter = this.micCtx.createDynamicsCompressor(); this.limiter.threshold.value = -2; this.limiter.knee.value = 0; this.limiter.ratio.value = 20; this.limiter.attack.value = 0.002; this.limiter.release.value = 0.1; this.micBus.connect(this.limiter); this.limiter.connect(this.micCtx.destination); this.gains = new Map(); this.monGain.connect(this.monCtx.destination);
     const an = c => { const a = c.createAnalyser(); a.fftSize = 512; return a; };
     this.anMic = an(this.micCtx); this.anMon = an(this.monCtx); this.anIn = an(this.micCtx);
     this.micBus.connect(this.anMic); this.monGain.connect(this.anMon);
@@ -54,7 +54,7 @@ export class Engine {
       if (seq !== this.micSeq) { s.getTracks().forEach(t => t.stop()); return; } // a newer call took over
       this.micStream = s; this.micStreamId = deviceId || '';
     }
-    if (mix) { this.micSrc = this.micCtx.createMediaStreamSource(this.micStream); this.micSrc.connect(this.micBus); this.micSrc.connect(this.anIn); }
+    if (mix) { this.micSrc = this.micCtx.createMediaStreamSource(this.micStream); this.micSrc.connect(this.mixGate); this.micSrc.connect(this.anIn); }
     if (hear) { this.monSrc = this.monCtx.createMediaStreamSource(this.micStream); this.monSrc.connect(this.monCtx.destination); }
   }
 }

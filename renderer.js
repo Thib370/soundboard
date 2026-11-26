@@ -178,11 +178,20 @@ function air() {
   else { cls = 'armed'; txt = 'SEND TO MIC ON'; sub = 'Sounds go to the virtual mic (Teams call not detected)'; }
   el.className = cls; $('airTxt').textContent = txt; $('airSub').textContent = sub;
 }
+// Real-mic mix only goes out when App output is a virtual cable (else your voice plays, delayed, in your headphones = heard twice),
+// and never when the real mic is itself a cable output (feedback loop).
+const isCable = s => /cable|virtual|vb-audio|voicemeeter/i.test(s);
+let mixBlock = '';
+function gate() {
+  const outCable = isCable(optName($('micOut'))), inCable = isCable(optName($('micIn')));
+  mixBlock = !$('mix').checked ? '' : !outCable ? 'blocked: App output is not the virtual cable (would echo in headphones)' : inCable ? 'blocked: Real mic is a cable (feedback loop)' : '';
+  const g = mixBlock ? 0 : 1; if (eng.mixGate.gain.value !== g) eng.mixGate.gain.value = g;
+}
 function frame() {
-  air();
-  const ids = [...eng.byKey.keys()], mixOn = !!eng.mixOn, lv = { m: eng.level(eng.anMic), h: eng.level(eng.anMon), i: mixOn ? eng.level(eng.anIn) : 0 };
+  gate(); air();
+  const ids = [...eng.byKey.keys()], mixOn = !!eng.mixOn, lv = { m: eng.level(eng.anMic), h: eng.level(eng.anMon), i: mixOn && !mixBlock ? eng.level(eng.anIn) : 0 };
   $('playing').textContent = ids.length ? ids.map(nameOf).join(', ') : 'idle';
-  $('inName').textContent = (mixOn ? 'in: ' : 'off · ') + optName($('micIn'));
+  $('inName').textContent = mixBlock || ((mixOn ? 'in: ' : 'off · ') + optName($('micIn')));
   $('volTxt').textContent = Math.round($('vol').value * 100) + '%';
   const mo = optName($('micOut')), di = discordIn(mo);
   $('micName').textContent = (eng.sendToMic ? 'App output: ' + mo : 'disabled (tick Send to mic)');
