@@ -78,6 +78,7 @@ function findChrome() {
   const c = [P + '\\BraveSoftware\\Brave-Browser\\Application\\brave.exe', L + '\\BraveSoftware\\Brave-Browser\\Application\\brave.exe', X + '\\Microsoft\\Edge\\Application\\msedge.exe', P + '\\Microsoft\\Edge\\Application\\msedge.exe', P + '\\Google\\Chrome\\Application\\chrome.exe', L + '\\Google\\Chrome\\Application\\chrome.exe', X + '\\Google\\Chrome\\Application\\chrome.exe'];
   return c.find(p => fs.existsSync(p));
 }
+if (process.argv.includes('--relaunched')) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1500); // let the old instance release the single-instance lock
 const gotLock = app.requestSingleInstanceLock(); if (!gotLock) app.quit();
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
 app.whenReady().then(() => {
@@ -96,6 +97,7 @@ app.whenReady().then(() => {
   ipcMain.handle('teams-brief', () => { runBrief(); return true; });
   ipcMain.handle('teams-connect', (_, c) => teams.connect(c));
   ipcMain.handle('teams-disconnect', () => teams.disconnect());
+  ipcMain.handle('app-restart', () => { app.relaunch({ args: process.argv.slice(1).filter(a => a !== '--relaunched').concat('--relaunched') }); app.quit(); return true; });
   ipcMain.handle('teams-config', (_, c) => { if (teams.cfg) teams.cfg = { ...teams.cfg, ...c }; });
   ipcMain.handle('teams-launch', () => { const exe = findChrome(); if (!exe) throw new Error('No Brave, Edge or Chrome found'); spawn(exe, ['--remote-debugging-port=9222', '--user-data-dir=' + path.join(data(), 'chrome-teams'), 'https://teams.microsoft.com'], { detached: true, stdio: 'ignore' }).unref(); return true; });
   ipcMain.on('popup-choice', (_, id) => choose(id));

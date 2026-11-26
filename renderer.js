@@ -124,7 +124,7 @@ async function runTeams(mode = 'cdp') {
   tOn = true; $('tConn').textContent = 'Disconnect'; window.api.teamsBrief();
 }
 const safeRun = m => runTeams(m).catch(e => { running = false; labels(); const t = String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''); $('tStatus').textContent = $('tStatus2').textContent = t; say(t); });
-$('tRun').onclick = () => safeRun('bridge'); $('tPlug').hidden = true; // Brave Playwright plugin is the default connection
+$('tRun').onclick = () => safeRun('bridge'); $('appRestart').onclick = () => window.api.appRestart(); $('tPlug').hidden = true; // Brave Playwright plugin is the default connection
 window.api.onTeamsStatus(s => { teamsState = { state: s.state, detail: s.detail || '' }; pushState(); const st = $('tState'); st.textContent = '● ' + ({ disconnected: 'Not connected', connected: 'Connected', captions: 'Connected, reading captions' }[s.state] || s.state); st.className = 'big ' + s.state; $('tStatus').textContent = $('tStatus2').textContent = s.detail || ''; $('plugHelp').hidden = (s.state === 'connected' || s.state === 'captions') && !/Starting|No Teams tab/.test(s.detail || ''); if ((s.detail === 'Chrome closed' || s.detail === 'Plugin process stopped') && running) { running = false; labels(); }
   if (s.state === 'disconnected') { callState = { inCall: false }; callCard(); }
   if (s.state === 'disconnected' && !running) { tOn = false; $('tConn').textContent = 'Connect'; } });
