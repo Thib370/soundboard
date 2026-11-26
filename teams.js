@@ -6,9 +6,11 @@ const lev = (a, b) => { const d = Array.from({ length: a.length + 1 }, (_, i) =>
   for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); return d[a.length][b.length]; };
 /** Returns the matched alias or null. Whole words only; 1 typo allowed for aliases of 5+ letters. */
 function matchAlias(text, aliases) {
-  const words = norm(text).split(/[^a-z0-9]+/).filter(Boolean);
-  for (const raw of aliases) { const a = norm(raw).trim(); if (!a) continue;
-    if (words.some(w => w === a || (a.length >= 5 && w.length >= 4 && lev(w, a) <= 1))) return raw.trim(); }
+  const words = norm(text).split(/[^a-z0-9]+/).filter(Boolean), hay = ' ' + words.join(' ') + ' ';
+  for (const raw of aliases) { const a = norm(raw).split(/[^a-z0-9]+/).filter(Boolean).join(' '); if (!a) continue;
+    if (hay.includes(' ' + a + ' ')) return raw.trim();                       // exact word / phrase
+    if (a.length >= 6 && !a.includes(' ') && words.some(w => w.length >= 5 && w.slice(0, 3) === a.slice(0, 3) && lev(w, a) <= 1)) return raw.trim(); // one typo, same first 3 letters
+  }
   return null;
 }
 // Caption selectors (Teams web); several fallbacks because Teams changes its markup.
@@ -28,7 +30,7 @@ class Mcp {
   constructor(url) { this.url = url; this.id = 0; this.sid = null; }
   async rpc(method, params, notify) {
     const body = notify ? { jsonrpc: '2.0', method, params } : { jsonrpc: '2.0', id: ++this.id, method, params };
-    const r = await fetch(this.url, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', ...(this.sid ? { 'mcp-session-id': this.sid } : {}) }, body: JSON.stringify(body) });
+    const r = await fetch(this.url, { signal: AbortSignal.timeout(8000), method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', ...(this.sid ? { 'mcp-session-id': this.sid } : {}) }, body: JSON.stringify(body) });
     this.sid = r.headers.get('mcp-session-id') || this.sid; if (notify) return null;
     const txt = await r.text(); const line = /^data:/m.test(txt) ? txt.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).trim()).pop() : txt;
     const j = JSON.parse(line); if (j.error) throw new Error(j.error.message); return j.result;
@@ -38,17 +40,19 @@ class Mcp {
 }
 const parseResult = text => { const m = text.match(/### Result\s*\n([\s\S]*?)(\n###|$)/); return JSON.parse(m ? m[1].trim() : text); };
 class Teams {
-  constructor(emit) { this.emit = emit; this.browser = null; this.page = null; this.timer = null; this.seen = new Map(); this.state = 'disconnected'; }
+  constructor(emit) { this.emit = emit; this.browser = null; this.page = null; this.timer = null; this.seen = new Map(); this.state = 'disconnected'; this.gen = 0; }
   set(state, detail = '') { if (state !== this.state || detail !== this.detail) { this.state = state; this.detail = detail; this.emit('status', { state, detail }); } }
   async connectBridge(cfg) {
+    const gen = this.gen; const alive = () => gen === this.gen;
+    if (/[&|<>^%"`;$]/.test(cfg.bridgeArgs || '')) { this.set('disconnected', 'Invalid plugin arguments'); return false; }
     const port = cfg.bridgePort || 8931, brave = ['C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe', process.env.LOCALAPPDATA + '\\BraveSoftware\\Brave-Browser\\Application\\brave.exe'].find(p => fs.existsSync(p));
     const args = ['-y', '@playwright/mcp@latest', '--port', String(port), ...(cfg.bridgeArgs ? cfg.bridgeArgs.split(' ') : ['--extension']), ...(brave && !cfg.bridgeArgs ? ['--executable-path', brave] : [])];
     this.set('connected', 'Starting the Playwright plugin (approve the connection in the browser if asked)…');
     this.proc = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', args, { shell: process.platform === 'win32', windowsHide: true, env: { ...process.env, ...(cfg.bridgeToken ? { PLAYWRIGHT_MCP_EXTENSION_TOKEN: cfg.bridgeToken } : {}) }, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
     this.out = ''; const grab = d => { this.out = (this.out + d).slice(-600); }; this.proc.stdout.on('data', grab); this.proc.stderr.on('data', grab);
-    this.proc.on('exit', () => { if (this.mcp) { this.mcp = null; clearInterval(this.timer); this.set('disconnected', 'Plugin process stopped: ' + (String(this.out).trim().split('\n').pop() || 'no output').slice(0, 160)); } });
+    const me = this.proc; this.proc.on('exit', () => { if (this.proc === me && this.mcp) { this.mcp = null; clearInterval(this.timer); this.set('disconnected', 'Plugin process stopped: ' + (String(this.out).trim().split('\n').pop() || 'no output').slice(0, 160)); } });
     this.mcp = new Mcp(`http://127.0.0.1:${port}/mcp`);
-    for (let i = 0; i < 40; i++) { try { await this.mcp.init(); this.tabOk = false; this.timer = setInterval(() => this.tick().catch(() => {}), 1000); return true; } catch { await new Promise(r => setTimeout(r, 1500)); if (!this.proc || !this.mcp) break; } }
+    for (let i = 0; i < 40; i++) { if (!alive()) return false; try { await this.mcp.init(); if (!alive()) return false; this.tabOk = false; this.timer = setInterval(() => this.tick().catch(() => {}), 1000); return true; } catch { await new Promise(r => setTimeout(r, 1500)); if (!alive() || !this.proc || !this.mcp) break; } }
     const why = String(this.out || '').trim().split('\n').pop() || ''; await this.disconnect(); this.set('disconnected', 'Could not start the Playwright plugin' + (why ? ': ' + why.slice(0, 160) : ' (needs Node/npx and the extension in the browser)')); return false;
   }
   async bridgeLines() {
@@ -63,16 +67,18 @@ class Teams {
   }
   async connect(cfg) {
     await this.disconnect(); this.cfg = cfg; if (cfg.mode === 'bridge') return this.connectBridge(cfg);
-    try { this.browser = await chromium.connectOverCDP(cfg.endpoint || 'http://127.0.0.1:9222', { timeout: 5000 }); }
+    const gen = this.gen;
+    let br; try { br = await chromium.connectOverCDP(cfg.endpoint || 'http://127.0.0.1:9222', { timeout: 5000 }); if (gen !== this.gen) { br.close().catch(() => {}); return false; } this.browser = br; }
     catch (e) { this.set('disconnected', 'Cannot reach Chrome on the debug port (use "Launch Chrome for Teams")'); return false; }
     this.browser.on('disconnected', () => { this.browser = null; this.page = null; clearInterval(this.timer); this.set('disconnected', 'Chrome closed'); });
     this.set('connected', 'Looking for the Teams tab…');
     this.timer = setInterval(() => this.tick().catch(() => {}), 1000); return true;
   }
-  async disconnect() { clearInterval(this.timer); this.timer = null; this.page = null; if (this.mcp) { this.mcp = null; } if (this.proc) { const p = this.proc; this.proc = null; try { process.platform === 'win32' ? spawn('taskkill', ['/pid', String(p.pid), '/t', '/f'], { stdio: 'ignore' }) : process.kill(-p.pid); } catch { try { p.kill(); } catch {} } } if (this.browser) { const b = this.browser; this.browser = null; await b.close().catch(() => {}); } this.set('disconnected', ''); }
+  async disconnect() { this.gen++; clearInterval(this.timer); this.timer = null; this.page = null; if (this.mcp) { this.mcp = null; } if (this.proc) { const p = this.proc; this.proc = null; try { process.platform === 'win32' ? spawn('taskkill', ['/pid', String(p.pid), '/t', '/f'], { stdio: 'ignore' }) : process.kill(-p.pid); } catch { try { p.kill(); } catch {} } } if (this.browser) { const b = this.browser; this.browser = null; await b.close().catch(() => {}); } this.set('disconnected', ''); }
   findPage() { const re = new RegExp(this.cfg.urlMatch || 'teams\\.(microsoft|cloud\\.microsoft)|mcas\\.ms', 'i'); for (const c of this.browser.contexts()) for (const p of c.pages()) if (re.test(p.url())) return p; return null; }
   async tick() {
     if (!this.mcp && !this.browser) return;
+    if (this.busy && Date.now() - this.busy > 20000) this.busy = 0;
     if (this.busy) { if (this.mcp && Date.now() - this.busy > 5000) this.set('connected', 'Waiting for the browser extension: approve the connection (select the Teams tab) in your browser'); return; }
     this.busy = Date.now(); try { await this.tick2(); } finally { this.busy = 0; }
   }
@@ -87,10 +93,10 @@ class Teams {
     if (!lines.length) return this.set('connected', 'Teams tab found, no captions (turn on live captions in the call)');
     this.set('captions', 'Reading live captions');
     if (!this.cfg.listen) return;
-    const aliases = String(this.cfg.aliases || '').split(',').map(s => s.trim()).filter(Boolean), self = norm(this.cfg.self || '');
+    const aliases = String(this.cfg.aliases || '').split(',').map(s => s.trim()).filter(Boolean), selfFirst = norm(this.cfg.self || '').trim().split(/\s+/)[0];
     for (const { s, t } of lines.slice(-6)) {
       const key = s + '|' + t; if (this.seen.has(key) || !t) continue; this.seen.set(key, Date.now());
-      if (this.cfg.ignoreSelf && self && s && norm(s).includes(self)) continue;
+      if (this.cfg.ignoreSelf && selfFirst && s && norm(s).split(/\s+/).includes(selfFirst)) continue;
       const alias = matchAlias(t, aliases); if (alias) this.emit('mention', { speaker: s || 'Someone', text: t, alias });
     }
     for (const [k, v] of this.seen) if (Date.now() - v > 120000) this.seen.delete(k);

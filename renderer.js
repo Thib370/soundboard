@@ -3,7 +3,7 @@ const mark = () => { document.querySelectorAll('#grid .snd').forEach(d => { cons
 const $ = id => document.getElementById(id), eng = new Engine(); eng.onChange = () => mark();
 let cfg = { sounds: [], settings: {} };
 const save = () => window.api.save(cfg), say = t => $('msg').textContent = t;
-const fill = (sel, list, cur) => { sel.innerHTML = '<option value="">Default</option>' + list.map(d => `<option value="${d.deviceId}">${d.label || d.deviceId}</option>`).join(''); sel.value = cur || ''; };
+const fill = (sel, list, cur) => { sel.replaceChildren(new Option('Default', '')); list.forEach(d => sel.add(new Option(d.label || d.deviceId, d.deviceId))); if (cur && !list.some(d => d.deviceId === cur)) { sel.value = ''; say('A saved audio device is not available; using the default.'); } else sel.value = cur || ''; };
 async function loadSound(s) { eng.setGain(s.id, s.gain ?? DEF_GAIN); try { await eng.decode(s.id, await window.api.read(s.path)); } catch (e) { say('Cannot load ' + s.name + ': ' + e.message); } }
 const DEF_GAIN = 1.2; // default boost for sounds without a saved value
 const cur = () => cfg.settings.folder ?? '*';           // '*' = all, '' = unsorted, else folder name
@@ -35,7 +35,7 @@ function render() {
       let done = false; const fin = ok => { if (done) return; done = true; const n = inp.value.trim(); if (ok && n) { s.name = n; save(); } render(); };
       inp.onkeydown = e => { if (e.key === 'Enter') fin(true); else if (e.key === 'Escape') fin(false); }; inp.onblur = () => fin(true);
     };
-    const x = document.createElement('button'); x.className = 'del'; x.textContent = 'remove'; x.onclick = () => { if (!confirm('Remove "' + s.name + '" from the list?')) return; eng.stop(s.id); cfg.sounds.splice(cfg.sounds.indexOf(s), 1); save(); render(); };
+    const x = document.createElement('button'); x.className = 'del'; x.textContent = 'remove'; x.onclick = () => { if (!confirm('Remove "' + s.name + '" from the list?')) return; eng.forget(s.id); cfg.sounds.splice(cfg.sounds.indexOf(s), 1); save(); render(); };
     d.append(b, gl, t, mv, rn, x); $('grid').append(d);
   });
   if (!shown.length) $('grid').innerHTML = '<p class="hint">No sounds here.</p>';
@@ -49,7 +49,7 @@ async function init() {
   if (!st.micOut) { const v = outputs.find(o => /cable input/i.test(o.label)); if (v) { $('micOut').value = v.deviceId; st.micOut = v.deviceId; } }
   $('send').checked = !!st.send; $('monMode').value = st.monMode ?? (st.hear ? (st.mon === false ? 'voice' : 'both') : st.mon === false ? 'off' : 'sounds'); $('vol').value = st.vol ?? 0.8;
   eng.sendToMic = $('send').checked; eng.monitor = soundsHeard(); eng.setVolume(+$('vol').value);
-  await eng.setMicSink($('micOut').value); await eng.setMonSink($('monOut').value);
+  try { await eng.setMicSink($('micOut').value); await eng.setMonSink($('monOut').value); } catch (x) { say('Output device unavailable: ' + x.message); }
   for (const s of cfg.sounds) await loadSound(s);
   render(); tInit();
   // Real mic mix is ON by default (sent to the virtual mic only, never to the headphones); saved choice wins.
@@ -61,8 +61,8 @@ $('send').onchange = e => { eng.sendToMic = e.target.checked; upd('send', e.targ
 const soundsHeard = () => ['sounds', 'both'].includes($('monMode').value), voiceHeard = () => ['voice', 'both'].includes($('monMode').value);
 $('monMode').onchange = async e => { const old = cfg.settings.monMode ?? 'off'; eng.monitor = soundsHeard(); try { await mic(); upd('monMode', e.target.value); } catch (x) { say(x.message); e.target.value = old; eng.monitor = soundsHeard(); } };
 $('vol').oninput = e => { eng.setVolume(+e.target.value); upd('vol', +e.target.value); };
-$('micOut').onchange = e => { eng.setMicSink(e.target.value); upd('micOut', e.target.value); };
-$('monOut').onchange = e => { eng.setMonSink(e.target.value); upd('monOut', e.target.value); };
+$('micOut').onchange = async e => { try { await eng.setMicSink(e.target.value); upd('micOut', e.target.value); } catch (x) { say('Output unavailable: ' + x.message); } };
+$('monOut').onchange = async e => { try { await eng.setMonSink(e.target.value); upd('monOut', e.target.value); } catch (x) { say('Output unavailable: ' + x.message); } };
 $('micIn').onchange = async e => { upd('micIn', e.target.value); if ($('mix').checked || voiceHeard()) await mic(); };
 const mic = () => eng.setMic($('mix').checked, voiceHeard(), $('micIn').value);
 $('mix').onchange = async e => { try { await mic(); upd('mix', e.target.checked); } catch (x) { say(x.message); e.target.checked = false; } };
@@ -79,15 +79,15 @@ $('rec').onclick = async () => {
     const id = $('micIn').value, stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: id ? { exact: id } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
     const chunks = []; rec = new MediaRecorder(stream); const t0 = Date.now();
     rec.ondataavailable = e => e.data.size && chunks.push(e.data);
-    rec.onstop = async () => {
-      clearInterval(recTimer); clearTimeout(recMax); stream.getTracks().forEach(t => t.stop()); $('rec').textContent = '● Record'; $('rec').classList.remove('recording');
+    const myT = { t: null, m: null }; rec.onstop = async () => {
+      clearInterval(myT.t); clearTimeout(myT.m); stream.getTracks().forEach(t => t.stop()); $('rec').textContent = '● Record'; $('rec').classList.remove('recording');
       try { const buf = await new Blob(chunks, { type: 'audio/webm' }).arrayBuffer(); if (!buf.byteLength) throw new Error('empty recording');
         const p = await window.api.saveRecording(buf); const n = $('recName').value.trim() || 'Recording ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         await addSound(n, p); $('recName').value = ''; say('Saved: ' + n); } catch (e) { say('Recording failed: ' + e.message); }
     };
     rec.start(); $('rec').classList.add('recording');
-    const tick = () => $('rec').textContent = '■ Stop (' + Math.floor((Date.now() - t0) / 1000) + 's)'; tick(); recTimer = setInterval(tick, 500);
-    recMax = setTimeout(stopRec, 60000);
+    const tick = () => $('rec').textContent = '■ Stop (' + Math.floor((Date.now() - t0) / 1000) + 's)'; tick(); myT.t = setInterval(tick, 500);
+    myT.m = setTimeout(stopRec, 60000);
   } catch (e) { say('Cannot record: ' + e.message); }
 };
 const fname = () => $('folderName').value.trim().slice(0, 40);
@@ -139,7 +139,7 @@ function callCard() {
 }
 window.api.onTeamsCall(c => { callState = c; callCard(); });
 window.api.onPlay(id => eng.play(id)); window.api.onStop(() => eng.stopAll());
-init();
+init().catch(e => say('Startup error: ' + e.message));
 
 $('editTog').onclick = () => { document.body.classList.toggle('edit'); $('editTog').classList.toggle('on', document.body.classList.contains('edit')); };
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName)) eng.stopAll(); });

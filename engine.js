@@ -17,6 +17,7 @@ export class Engine {
   setVolume(v) { this.micGain.gain.value = v; this.monGain.gain.value = v; }
   async decode(key, bytes) { const b = await this.micCtx.decodeAudioData(bytes.slice(0)); this.buffers.set(key, b); return b; }
   level(an) { const d = new Uint8Array(an.fftSize); an.getByteTimeDomainData(d); let m = 0; for (const v of d) m = Math.max(m, Math.abs(v - 128)); return Math.min(1, m / 90); }
+  forget(key) { this.stop(key); this.buffers.delete(key); this.gains.delete(key); this.byKey.delete(key); }
   isPlaying(key) { return (this.byKey.get(key)?.size || 0) > 0; }
   // Toggle: clicking a playing sound stops it, otherwise starts it.
   play(key) {
@@ -43,13 +44,15 @@ export class Engine {
   stopAll() { [...this.active].forEach(s => { try { s.stop(); } catch {} }); }
   // Real mic: `mix` sends it to the virtual mic; `hear` plays it in the headphones (sidetone). Independent toggles, one shared stream.
   async setMic(mix, hear, deviceId) {
+    const seq = this.micSeq = (this.micSeq || 0) + 1;
     this.micSrc?.disconnect(); this.monSrc?.disconnect(); this.micSrc = this.monSrc = null;
     this.mixOn = mix; this.hearOn = hear;
     if (!mix && !hear) { this.micStream?.getTracks().forEach(t => t.stop()); this.micStream = null; return; }
     if (this.micStreamId !== (deviceId || '') || !this.micStream?.active) {
       this.micStream?.getTracks().forEach(t => t.stop());
-      this.micStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: deviceId ? { exact: deviceId } : undefined, echoCancellation: false, noiseSuppression: false } });
-      this.micStreamId = deviceId || '';
+      const s = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: deviceId ? { exact: deviceId } : undefined, echoCancellation: false, noiseSuppression: false } });
+      if (seq !== this.micSeq) { s.getTracks().forEach(t => t.stop()); return; } // a newer call took over
+      this.micStream = s; this.micStreamId = deviceId || '';
     }
     if (mix) { this.micSrc = this.micCtx.createMediaStreamSource(this.micStream); this.micSrc.connect(this.micBus); this.micSrc.connect(this.anIn); }
     if (hear) { this.monSrc = this.monCtx.createMediaStreamSource(this.micStream); this.monSrc.connect(this.monCtx.destination); }
