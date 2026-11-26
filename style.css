@@ -18,3 +18,8 @@ button{cursor:pointer}button:hover{background:#34343c}
 .snd .gain{font-size:.75rem;color:#aaa;display:flex;gap:.3rem;align-items:center}.snd .gain input{flex:1;min-width:0;padding:0}.snd .gain em{font-style:normal;min-width:2.2em}
 #rec.recording{background:#b91c1c;border-color:#ef4444}
 .snd input.rename{padding:1rem .5rem;font-size:1rem;text-align:center;width:100%;box-sizing:border-box}
+#tabs{gap:.4rem}.tab.on{background:#4f46e5;border-color:#4f46e5}
+#grid.list{display:flex;flex-direction:column;gap:.3rem}
+#grid.list .snd{flex-direction:row;align-items:center;gap:.5rem;background:#1d1d22;border-radius:8px;padding:.3rem}
+#grid.list .snd .play{flex:1;text-align:left;padding:.5rem .8rem;font-size:.95rem}#grid.list .snd .gain{width:170px}
+#grid.list .snd input.rename{flex:1;padding:.5rem}.snd .move{font-size:.75rem;padding:.2rem}

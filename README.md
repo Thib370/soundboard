@@ -5,6 +5,7 @@ Windows soundboard (Electron) that plays sounds into a **virtual microphone**, s
 ## Features
 - Sound grid: add local files (mp3, wav, ogg, m4a, flac) or paste a YouTube/web URL (downloaded with `yt-dlp`, auto-fetched on first use).
 - Click a sound to play, click again to stop. Per-sound **■ stop**, **Stop all** (cuts immediately).
+- **Folders**: tabs (All / Unsorted / your folders) to show only the sounds you want; create, rename, delete folders (deleting moves sounds to Unsorted); move a sound with its dropdown. **List view** toggle (compact rows) or grid. New sounds, recordings and imports go into the folder you are viewing. Hotkeys still follow the global order of all sounds.
 - **rename** a sound (Enter saves, Esc cancels, empty name ignored).
 - **● Record**: record your own sample from the selected Real mic (max 60 s, optional name); it is saved as a new sound.
 - Per-sound **boost** slider (×0.2 to ×4, saved) for quiet samples that don't trigger voice detection; a limiter on the mic path prevents clipping.
