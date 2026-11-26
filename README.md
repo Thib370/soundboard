@@ -22,6 +22,9 @@ One click: **▶ Run Teams** (always visible above the panel) starts Chrome if n
 ## Live-call layout
 A sticky bar always shows the send state: **MIC OFF** (grey), **ON AIR** (pulsing red: send is on and Teams shows you in a call and unmuted), **SEND ON · MUTED IN TEAMS** (amber), **SEND TO MIC ON** (Teams call not detected). The big red **STOP** (bottom right) and the **Esc** key cut all sounds. Per-sound boost / move / rename / remove are hidden until you click **✎ Edit** (remove asks for confirmation). Double-clicks on a sample are ignored for 250 ms. Setup, import and folders are in a collapsed section at the bottom.
 
+## PROne website bridge
+The app runs a small server on `127.0.0.1:8790` (falls back to 8791/8792; this PC only). In *Setup > PROne website link* it shows a pairing code and a **Copy link** button. Opening that link in your browser pairs the PROne Soundboard page, which then mirrors the app (Teams state, alerts, call, your samples) and plays samples **through the app** (so they reach the virtual mic). Allowed page origins: the NAS (`http://192.168.1.11`), `localhost:4200`, plus any you add with **Allow**. The page can only play a known sample or stop everything. Bridge settings live in `bridge.json` next to `config.json`.
+
 ## Requirements
 - Windows 10/11
 - [Node.js](https://nodejs.org) 22 or newer (tested with 26)

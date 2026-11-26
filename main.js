@@ -1,6 +1,8 @@
 const { app, BrowserWindow, ipcMain, dialog, globalShortcut } = require('electron');
 const fs = require('fs'), path = require('path'), { spawn } = require('child_process');
 const { Teams } = require('./teams.js');
+const { startBridge } = require('./bridge.js');
+let bridge = null;
 let win, popup = null, popupTimer = null, lastPopup = 0; const data = () => app.getPath('userData');
 const cfgFile = () => path.join(data(), 'config.json'), soundsDir = () => path.join(data(), 'sounds'), exe = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp', ytdlp = () => path.join(data(), exe);
 const load = () => {
@@ -54,6 +56,17 @@ const gotLock = app.requestSingleInstanceLock(); if (!gotLock) app.quit();
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
 app.whenReady().then(() => {
   if (!gotLock) return;
+  const bf = () => path.join(data(), 'bridge.json');
+  bridge = startBridge({
+    getCfg: () => { try { return { bridge: JSON.parse(fs.readFileSync(bf(), 'utf8')) }; } catch { return {}; } },
+    saveCfg: c => { fs.mkdirSync(data(), { recursive: true }); const t = bf() + '.tmp'; fs.writeFileSync(t, JSON.stringify(c.bridge, null, 1)); fs.renameSync(t, bf()); },
+    validId: id => load().sounds.some(s => s.id === id),
+    onCommand: c => c.t === 'stop' ? send('stop') : send('play', c.id),
+  });
+  ipcMain.on('bridge-push', (_, s) => bridge && bridge.push(s));
+  ipcMain.handle('bridge-info', () => bridge.info());
+  ipcMain.handle('bridge-rotate', () => bridge.rotate());
+  ipcMain.handle('bridge-allow', (_, o) => bridge.allowOrigin(String(o).trim()));
   ipcMain.handle('teams-connect', (_, c) => teams.connect(c));
   ipcMain.handle('teams-disconnect', () => teams.disconnect());
   ipcMain.handle('teams-config', (_, c) => { if (teams.cfg) teams.cfg = { ...teams.cfg, ...c }; });
@@ -77,6 +90,6 @@ app.whenReady().then(() => {
   ipcMain.handle('update-ytdlp', async () => { await ensureYtdlp(true); return true; });
   registerHotkeys(load().sounds || []);
 });
-app.on('before-quit', () => { try { teams.disconnect(); } catch {} });
+app.on('before-quit', () => { try { teams.disconnect(); } catch {} try { bridge && bridge.stop(); } catch {} });
 app.on('will-quit', () => globalShortcut.unregisterAll());
 app.on('window-all-closed', () => app.quit());

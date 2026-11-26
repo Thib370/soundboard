@@ -44,6 +44,10 @@
  <input id="folderName" placeholder="Folder name" size="18"><button id="fAdd">+ Folder</button><button id="fRen">Rename folder</button><button id="fDel">Delete folder</button>
  <button id="view">List view</button>
 </section>
+<details id="bridgeBox"><summary>PROne website link</summary>
+ <div class="row"><span>Pairing code: <b id="brCode">…</b></span><button id="brCopy">Copy link</button><button id="brRot">New code</button><span id="brInfo" class="hint"></span></div>
+ <div class="row"><input id="brOrigin" size="28" placeholder="Allow another site, e.g. http://100.1.2.3"><button id="brAllow">Allow</button></div>
+ <p class="hint">Open the link in your browser: the PROne Soundboard page then mirrors this app (Teams state, alerts, your samples) and plays through it. Only this PC can connect.</p></details>
 <details id="teams"><summary>Advanced Teams settings</summary>
  <div class="row"><button id="tLaunch">Launch Chrome for Teams</button><button id="tConn">Connect</button><label><input type="checkbox" id="tListen"> Listen for mentions</label><label><input type="checkbox" id="tSelf" checked> Ignore my own name</label></div>
  <div class="row"><label title="Optional. Sets PLAYWRIGHT_MCP_EXTENSION_TOKEN for the plugin so the browser extension connects without asking. Stored only in this PC's config.json.">Plugin token <input id="tToken" type="password" size="22" placeholder="optional"></label></div>

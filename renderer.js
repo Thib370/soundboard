@@ -1,6 +1,6 @@
 import { Engine } from './engine.js';
 const mark = () => { document.querySelectorAll('#grid .snd').forEach(d => { const p = d.querySelector('.play'), on = eng.isPlaying(p.dataset.id); p.classList.toggle('on', on); d.querySelector('.stopone').hidden = !on; }); document.querySelectorAll('#callPad .play').forEach(b => b.classList.toggle('on', eng.isPlaying(b.dataset.id))); };
-const $ = id => document.getElementById(id), eng = new Engine(); eng.onChange = () => mark();
+const $ = id => document.getElementById(id), eng = new Engine(); eng.onChange = () => { mark(); pushState(); };
 let cfg = { sounds: [], settings: {} };
 const save = () => window.api.save(cfg), say = t => $('msg').textContent = t;
 const fill = (sel, list, cur) => { sel.replaceChildren(new Option('Default', '')); list.forEach(d => sel.add(new Option(d.label || d.deviceId, d.deviceId))); if (cur && !list.some(d => d.deviceId === cur)) { sel.value = ''; say('A saved audio device is not available; using the default.'); } else sel.value = cur || ''; };
@@ -51,7 +51,7 @@ async function init() {
   eng.sendToMic = $('send').checked; eng.monitor = soundsHeard(); eng.setVolume(+$('vol').value);
   try { await eng.setMicSink($('micOut').value); await eng.setMonSink($('monOut').value); } catch (x) { say('Output device unavailable: ' + x.message); }
   for (const s of cfg.sounds) await loadSound(s);
-  render(); tInit();
+  render(); tInit(); bridgeUi().catch(() => {}); pushState();
   // Real mic mix is ON by default (sent to the virtual mic only, never to the headphones); saved choice wins.
   $('mix').checked = st.mix !== false; 
   if ($('mix').checked || voiceHeard()) try { await mic(); } catch (x) { $('mix').checked = false; $('monMode').value = soundsHeard() ? 'sounds' : 'off'; eng.monitor = soundsHeard(); say('Mic off: ' + x.message); }
@@ -123,13 +123,14 @@ async function runTeams(mode = 'cdp') {
   tOn = true; $('tConn').textContent = 'Disconnect';
 }
 $('tRun').onclick = () => runTeams('cdp'); $('tPlug').onclick = () => runTeams('bridge');
-window.api.onTeamsStatus(s => { const st = $('tState'); st.textContent = '● ' + ({ disconnected: 'Not connected', connected: 'Connected', captions: 'Connected, reading captions' }[s.state] || s.state); st.className = 'big ' + s.state; $('tStatus').textContent = $('tStatus2').textContent = s.detail || ''; if ((s.detail === 'Chrome closed' || s.detail === 'Plugin process stopped') && running) { running = false; labels(); }
+window.api.onTeamsStatus(s => { teamsState = { state: s.state, detail: s.detail || '' }; pushState(); const st = $('tState'); st.textContent = '● ' + ({ disconnected: 'Not connected', connected: 'Connected', captions: 'Connected, reading captions' }[s.state] || s.state); st.className = 'big ' + s.state; $('tStatus').textContent = $('tStatus2').textContent = s.detail || ''; if ((s.detail === 'Chrome closed' || s.detail === 'Plugin process stopped') && running) { running = false; labels(); }
   if (s.state === 'disconnected') { callState = { inCall: false }; callCard(); }
   if (s.state === 'disconnected' && !running) { tOn = false; $('tConn').textContent = 'Connect'; } });
-window.api.onTeamsLog(l => { const box = $('tLog'); if (box.querySelector('.hint')) box.innerHTML = ''; const d = document.createElement('div'); d.className = l.kind === 'mention' ? 'al mention' : 'al'; d.textContent = new Date(l.t).toLocaleTimeString() + ' ' + l.who + ': ' + l.msg; box.prepend(d); while (box.children.length > 20) box.lastChild.remove(); });
+window.api.onTeamsLog(l => { alertsList.unshift({ t: l.t, speaker: l.who, text: String(l.msg).slice(0, 200), kind: l.kind || 'log' }); pushState(); const box = $('tLog'); if (box.querySelector('.hint')) box.innerHTML = ''; const d = document.createElement('div'); d.className = l.kind === 'mention' ? 'al mention' : 'al'; d.textContent = new Date(l.t).toLocaleTimeString() + ' ' + l.who + ': ' + l.msg; box.prepend(d); while (box.children.length > 20) box.lastChild.remove(); });
 $('aClear').onclick = () => { $('tLog').innerHTML = '<span class="hint">No alerts. Messages addressed to you show here.</span>'; };
 let callState = { inCall: false };
 function callCard() {
+  pushState();
   const c = callState, pad = $('callPad'); pad.innerHTML = '';
   $('callInfo').textContent = c.inCall ? 'In call: ' + (c.title || 'Teams meeting') : (running ? 'Not in a call.' : 'Not connected.');
   $('callMuted').hidden = !(c.inCall && c.muted);
@@ -137,12 +138,18 @@ function callCard() {
   const folder = T().replyFolder || '', list = cfg.sounds.filter(s => (s.folder || '') === folder);
   (list.length ? list : cfg.sounds).slice(0, 12).forEach(s => { const b = document.createElement('button'); b.className = 'play'; b.textContent = s.name; b.dataset.id = s.id; if (eng.isPlaying(s.id)) b.classList.add('on'); b.onclick = () => eng.play(s.id); pad.append(b); });
 }
-window.api.onTeamsCall(c => { callState = c; callCard(); });
+window.api.onTeamsCall(c => { callState = c; callCard(); pushState(); });
 window.api.onPlay(id => eng.play(id)); window.api.onStop(() => eng.stopAll());
 init().catch(e => say('Startup error: ' + e.message));
 
 $('editTog').onclick = () => { document.body.classList.toggle('edit'); $('editTog').classList.toggle('on', document.body.classList.contains('edit')); };
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName)) eng.stopAll(); });
+// ---- PROne bridge: push live state to the local server, show pairing info ----
+let alertsList = [], teamsState = { state: 'disconnected', detail: '' }, pushT = null;
+const pushState = () => { if (pushT) return; pushT = setTimeout(() => { pushT = null; window.api.bridgePush({ teams: teamsState, call: callState, alerts: alertsList.slice(0, 20), playing: [...eng.byKey.keys()], samples: cfg.sounds.map(s => ({ id: s.id, name: s.name, folder: s.folder || '', gain: s.gain ?? DEF_GAIN })) }); }, 100); };
+async function bridgeUi() { const i = await window.api.bridgeInfo(); $('brCode').textContent = i.token; $('brInfo').textContent = i.port ? 'port ' + i.port + ' · ' + i.clients + ' connected' : 'server not running (ports busy)'; $('brCopy').onclick = () => { navigator.clipboard.writeText('http://192.168.1.11/#/soundboard?sb=' + i.token); say('Link copied'); }; }
+$('brRot').onclick = async () => { await window.api.bridgeRotate(); bridgeUi(); };
+$('brAllow').onclick = async () => { try { await window.api.bridgeAllow($('brOrigin').value); $('brOrigin').value = ''; say('Site allowed'); } catch (e) { say(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')); } };
 // Live routing diagram: who plays, where it goes, and levels.
 const nameOf = id => cfg.sounds.find(s => s.id === id)?.name || id;
 const optName = sel => { if (sel.value) return sel.selectedOptions[0]?.textContent || sel.value; const d = [...sel.options].find(o => o.value === 'default'); return d ? d.textContent : 'System default'; };
