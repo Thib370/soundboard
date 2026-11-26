@@ -107,6 +107,29 @@ class Teams {
   }
   async disconnect() { this.gen++; clearInterval(this.timer); this.timer = null; this.page = null; if (this.mcp) { this.mcp = null; } if (this.proc) { const p = this.proc; this.proc = null; try { process.platform === 'win32' ? spawn('taskkill', ['/pid', String(p.pid), '/t', '/f'], { stdio: 'ignore' }) : process.kill(-p.pid); } catch { try { p.kill(); } catch {} } } if (this.browser) { const b = this.browser; this.browser = null; await b.close().catch(() => {}); } this.set('disconnected', ''); }
   findPage() { const re = new RegExp(this.cfg.urlMatch || 'teams\\.(microsoft|cloud\\.microsoft)|mcas\\.ms', 'i'); for (const c of this.browser.contexts()) for (const p of c.pages()) if (re.test(p.url())) return p; return null; }
+  // Join a meeting from its chat (plugin mode only). Camera off, mic on. Resolves when the call controls appear.
+  async join(title) {
+    if (!this.mcp) throw new Error('Joining needs the plugin connection (click ▶ Run Teams)');
+    if (!(await this.bridgeLines())) throw new Error('Teams tab not available');
+    const ev = async (fn, arg) => parseResult(await this.mcp.call('browser_evaluate', { function: `() => (${fn.toString()})(${JSON.stringify(arg)})` }));
+    const r1 = await ev(async t => {
+      if (document.querySelector('#microphone-button')) return 'already';
+      const nm = e => (e.getAttribute('aria-labelledby') || '').split(' ').filter(Boolean).map(i => (document.getElementById(i) || {}).innerText || '').join(' | ');
+      const e = [...document.querySelectorAll('[role=treeitem][aria-level="2"]')].find(x => nm(x).toLowerCase().includes(t.toLowerCase()) && /réunion|meeting/i.test(nm(x)));
+      if (!e) return 'no-chat'; e.click(); await new Promise(r => setTimeout(r, 2500));
+      const b = document.querySelector('[data-tid="chat-join-button"]'); if (!b) return 'no-join'; b.click(); return 'clicked'; }, title);
+    if (r1 === 'already') return 'already in a call';
+    if (r1 === 'no-chat') throw new Error('No meeting chat named "' + title + '"');
+    if (r1 === 'no-join') throw new Error('No Join button yet (meeting not started?)');
+    const r2 = await ev(async () => {
+      let btn = null; for (let i = 0; i < 40 && !btn; i++) { btn = document.querySelector('[data-tid="prejoin-join-button"]') || [...document.querySelectorAll('button')].find(b => /^\s*(rejoindre maintenant|join now)\s*$/i.test(b.innerText || '')); if (!btn) await new Promise(r => setTimeout(r, 750)); }
+      if (!btn) return 'no-prejoin'; const warn = [];
+      for (const [re, want, n] of [[/cam[eé]ra|video/i, false, 'camera'], [/micro/i, true, 'mic']]) { const s = [...document.querySelectorAll('[role=switch],input[type=checkbox]')].find(x => re.test(x.getAttribute('aria-label') || '')); if (!s) { warn.push(n + '?'); continue; } if (((s.getAttribute('aria-checked') ?? String(s.checked)) === 'true') !== want) s.click(); }
+      await new Promise(r => setTimeout(r, 400)); btn.click(); return warn.join(',') || 'ok'; });
+    if (r2 === 'no-prejoin') throw new Error('Pre-join screen not found');
+    for (let i = 0; i < 60; i++) { if (await ev(() => !!document.querySelector('#microphone-button'))) return 'joined' + (r2 !== 'ok' ? ' (' + r2 + ')' : ''); await new Promise(r => setTimeout(r, 1000)); }
+    throw new Error('Did not enter the call (lobby?)');
+  }
   async brief() {
     if (!this.browser && !this.mcp) throw new Error('Not connected to Teams');
     const res = { at: Date.now(), unread: null, meetings: null, note: '' };

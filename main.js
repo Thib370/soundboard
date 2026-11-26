@@ -52,6 +52,20 @@ function showPopup(men) {
 }
 const teams = new Teams((ev, d) => { if (ev === 'status') send('teams-status', d); else if (ev === 'mention') showPopup(d); else if (ev === 'call') send('teams-call', d); });
 const { summarize } = require('./brief.js');
+// Join a meeting and play one sample, only after Damy approves in a native dialog (nothing reaches a call without approval).
+let joinBusy = false;
+async function joinAndPlay(c) {
+  if (joinBusy) return; joinBusy = true;
+  try {
+    const name = ((load().sounds || []).find(s => s.id === c.id) || {}).name || c.id;
+    const r = await dialog.showMessageBox(win, { type: 'question', buttons: ['Approve', 'Cancel'], defaultId: 1, cancelId: 1, title: 'Join Teams meeting?', message: 'Join "' + c.title + '" and play "' + name + '" into the call?', detail: 'Requested through the local bridge (e.g. join-daily.js).' });
+    if (r.response !== 0) return send('teams-log', { t: Date.now(), msg: 'Join cancelled' });
+    send('teams-log', { t: Date.now(), msg: 'Joining ' + c.title + '…' });
+    const res = await teams.join(c.title); send('teams-log', { t: Date.now(), msg: res });
+    setTimeout(() => send('play', c.id), c.delay * 1000);
+  } catch (e) { send('teams-log', { t: Date.now(), msg: 'Join failed: ' + e.message.slice(0, 120) }); }
+  finally { joinBusy = false; }
+}
 let briefBusy = false;
 async function runBrief() {
   if (briefBusy) return; briefBusy = true; send('teams-brief', { busy: true });
@@ -73,7 +87,7 @@ app.whenReady().then(() => {
     getCfg: () => { try { return { bridge: JSON.parse(fs.readFileSync(bf(), 'utf8')) }; } catch { return {}; } },
     saveCfg: c => { fs.mkdirSync(data(), { recursive: true }); const t = bf() + '.tmp'; fs.writeFileSync(t, JSON.stringify(c.bridge, null, 1)); fs.renameSync(t, bf()); },
     validId: id => load().sounds.some(s => s.id === id),
-    onCommand: c => c.t === 'stop' ? send('stop') : c.t === 'brief' ? runBrief() : send('play', c.id),
+    onCommand: c => c.t === 'stop' ? send('stop') : c.t === 'brief' ? runBrief() : c.t === 'join' ? joinAndPlay(c) : send('play', c.id),
   });
   ipcMain.on('bridge-push', (_, s) => bridge && bridge.push(s));
   ipcMain.handle('bridge-info', () => bridge.info());
