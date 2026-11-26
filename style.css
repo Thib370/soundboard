@@ -1,0 +1,8 @@
+body{font-family:system-ui,sans-serif;background:#16161a;color:#eee;margin:0}
+main{max-width:860px;margin:0 auto;padding:1rem;text-align:center}
+.row{display:flex;flex-wrap:wrap;gap:.8rem;justify-content:center;align-items:center;margin:.6rem 0}
+select,input,button{background:#26262c;color:#eee;border:1px solid #444;border-radius:6px;padding:.4rem .7rem}
+button{cursor:pointer}button:hover{background:#34343c}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.6rem;margin-top:1rem}
+.snd{display:flex;flex-direction:column;gap:.3rem}.snd .play{padding:1rem .5rem;font-size:1rem;background:#4f46e5}
+.snd .del{font-size:.75rem;opacity:.7}.warn{color:#fbbf24}.msg{min-height:1.2em;color:#9ca3af}.hint{color:#777;font-size:.85rem}

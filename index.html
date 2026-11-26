@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Soundboard Mic</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="style.css"></head><body><main>
+<h1>Soundboard Mic</h1>
+<section class="row">
+ <label><input type="checkbox" id="send"> Send to mic</label>
+ <label><input type="checkbox" id="mon" checked> Hear in headphones</label>
+ <label><input type="checkbox" id="mix"> Mix my real mic</label>
+ <label>Volume <input type="range" id="vol" min="0" max="1" step="0.01" value="0.8"></label>
+ <button id="stop">Stop all (Ctrl+Alt+0)</button>
+</section>
+<section class="row">
+ <label>Virtual mic output <select id="micOut"></select></label>
+ <label>Headphones <select id="monOut"></select></label>
+ <label>Real mic <select id="micIn"></select></label>
+</section>
+<p id="warn" class="warn" hidden>No virtual cable found (e.g. "CABLE Input"). Install VB-Cable, then restart. See README.</p>
+<section class="row">
+ <button id="add">+ Add files</button>
+ <input id="url" placeholder="YouTube / web URL" size="40"><button id="imp">Import</button>
+ <button id="upd">Update yt-dlp</button>
+</section>
+<p id="msg" class="msg"></p>
+<div id="grid"></div>
+<p class="hint">Hotkeys: Ctrl+Alt+1..9 play the first 9 sounds.</p>
+</main><script type="module" src="renderer.js"></script></body></html>
