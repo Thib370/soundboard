@@ -51,19 +51,11 @@ function showPopup(men) {
   } catch (e) { closePopup(); }
 }
 const teams = new Teams((ev, d) => { if (ev === 'status') send('teams-status', d); else if (ev === 'mention') showPopup(d); else if (ev === 'call') send('teams-call', d); });
-// Local summary through Ollama (127.0.0.1:11434). Returns null if Ollama or the model is missing: the plain list is shown instead.
-async function summarize(b) {
-  if (!b.unread || !b.unread.length) return null;
-  const items = b.unread.slice(0, 25).map(u => `- ${u.title}${u.time ? ' (' + u.time + ')' : ''}: ${u.message}`.slice(0, 240)).join('\n'), meets = (b.meetings || []).map(x => `- ${x.start}-${x.end} ${x.title}`).join('\n');
-  const prompt = `You write a morning brief from Teams data. Rules: use ONLY facts in the data; no advice, no generic tips, no deadlines or times that are not in the data; one short bullet per unread chat saying who wrote and what they ask (put urgent or direct questions first), then one line listing today's meetings with their times. Max 6 bullets. If a field is missing, skip it.\n\nUNREAD CHATS:\n${items}\n\nTODAY'S MEETINGS:\n${meets || '(none)'}`;
-  try { const model = (load().teams || {}).model || 'qwen2.5:7b';
-    const r = await fetch('http://127.0.0.1:11434/api/generate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model, prompt, stream: false, keep_alive: '5m', options: { temperature: 0.2, num_ctx: 4096 } }), signal: AbortSignal.timeout(120000) });
-    if (!r.ok) return null; return String((await r.json()).response || '').trim() || null; } catch { return null; }
-}
+const { summarize } = require('./brief.js');
 let briefBusy = false;
 async function runBrief() {
   if (briefBusy) return; briefBusy = true; send('teams-brief', { busy: true });
-  try { const b = await teams.brief(); send('teams-brief', { ...b, summarizing: !!(b.unread && b.unread.length) }); const s = await summarize(b); send('teams-brief', { ...b, summary: s, summarizing: false }); }
+  try { const b = await teams.brief(); send('teams-brief', { ...b, summarizing: !!(b.unread && b.unread.length) }); const s = await summarize(b, (load().teams || {}).model); send('teams-brief', { ...b, summary: s, summarizing: false }); }
   catch (e) { send('teams-brief', { at: Date.now(), unread: null, meetings: null, note: e.message.slice(0, 120) }); }
   finally { briefBusy = false; }
 }
