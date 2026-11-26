@@ -13,3 +13,5 @@ button{cursor:pointer}button:hover{background:#34343c}
 .node.live{opacity:1;border-color:#16a34a}.node span{color:#aaa;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bar{display:block;height:6px;background:#111;border-radius:3px;overflow:hidden}.bar u{display:block;height:100%;width:0;background:#16a34a}
 .arr{font-size:1.6rem;color:#444}.arr.live{color:#16a34a}
+.node span.need{color:#fbbf24;white-space:normal}
+#flow .node{min-width:0}

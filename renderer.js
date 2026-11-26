@@ -45,14 +45,18 @@ init();
 
 // Live routing diagram: who plays, where it goes, and levels.
 const nameOf = id => cfg.sounds.find(s => s.id === id)?.name || id;
-const optName = sel => sel.selectedOptions[0]?.textContent || 'Default';
+const optName = sel => { if (sel.value) return sel.selectedOptions[0]?.textContent || sel.value; const d = [...sel.options].find(o => o.value === 'default'); return d ? d.textContent : 'System default'; };
+// Name Discord/Teams must select as input: the cable's recording side ("CABLE Input" -> "CABLE Output").
+const discordIn = name => /input/i.test(name) && /cable|virtual/i.test(name) ? name.replace(/Input/i, 'Output') : null;
 function frame() {
   const ids = [...eng.byKey.keys()], mixOn = !!eng.micStream, lv = { m: eng.level(eng.anMic), h: eng.level(eng.anMon), i: mixOn ? eng.level(eng.anIn) : 0 };
   $('playing').textContent = ids.length ? ids.map(nameOf).join(', ') : 'idle';
-  $('inName').textContent = mixOn ? optName($('micIn')) : 'off';
+  $('inName').textContent = (mixOn ? 'in: ' : 'off · ') + optName($('micIn'));
   $('volTxt').textContent = Math.round($('vol').value * 100) + '%';
-  $('micName').textContent = eng.sendToMic ? optName($('micOut')) : 'disabled (tick Send to mic)';
-  $('monName').textContent = eng.monitor ? optName($('monOut')) : 'disabled';
+  const mo = optName($('micOut')), di = discordIn(mo);
+  $('micName').textContent = (eng.sendToMic ? 'App output: ' + mo : 'disabled (tick Send to mic)');
+  $('discName').textContent = di ? 'Discord/Teams input must be: ' + di : (/default/i.test(mo) || !mo ? 'Output is not the cable: set App output to CABLE Input' : 'Discord/Teams input: pick the cable matching this device');
+  $('monName').textContent = eng.monitor ? 'out: ' + optName($('monOut')) : 'disabled';
   $('mMic').style.width = lv.m * 100 + '%'; $('mMon').style.width = lv.h * 100 + '%'; $('mIn').style.width = lv.i * 100 + '%';
   $('nSounds').classList.toggle('live', ids.length > 0); $('nIn').classList.toggle('live', mixOn); $('nApp').classList.toggle('live', ids.length > 0 || mixOn);
   $('nMic').classList.toggle('live', eng.sendToMic && (lv.m > 0.01 || ids.length > 0)); $('nMon').classList.toggle('live', eng.monitor && ids.length > 0);
