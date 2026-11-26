@@ -9,8 +9,8 @@ Windows soundboard (Electron) that plays sounds into a **virtual microphone**, s
 - **rename** a sound (Enter saves, Esc cancels, empty name ignored).
 - **● Record**: record your own sample from the selected Real mic (max 60 s, optional name); it is saved as a new sound.
 - Per-sound **boost** slider (×0.2 to ×4, default ×1.2, saved) for quiet samples that don't trigger voice detection; a limiter on the mic path prevents clipping.
-- Outputs: **Send to mic** (virtual cable), **Hear in headphones**, volume.
-- **Mix my real mic**: on by default and remembered. Your voice and the sounds go together to the virtual mic only; your voice is not played in your headphones unless you tick **Hear my mic (headphones)** (independent toggle, off by default; use headphones, not speakers, to avoid feedback).
+- Outputs: **Send to mic** (virtual cable), **Monitor** (what you hear in your headphones: Off / Sounds only / Sounds + my voice / My voice only), volume.
+- **Mix my real mic**: on by default and remembered. Sends your voice with the sounds to the virtual mic. What you hear is set separately by **Monitor**; including your voice there needs headphones (speakers would feed back).
 - Live routing diagram: what plays, where it goes, level meters, real device names, and the input name Discord/Teams must select.
 - Global hotkeys: `Ctrl+Alt+1..9` play/stop the first 9 sounds, `Ctrl+Alt+0` stops all.
 
@@ -41,7 +41,7 @@ The sound must go **into the cable**, not to your headset. Pick the plain `CABLE
 | --- | --- | --- |
 | App | Virtual mic output | `CABLE Input (VB-Audio Virtual Cable)` |
 | App | Send to mic | ticked |
-| App | Hear in headphones + Headphones | ticked, your real headset/speakers (so you hear the sounds) |
+| App | Monitor + Headphones | *Sounds only* (or your preference), your real headset/speakers |
 | App | Mix my real mic + Real mic | ticked, your real microphone (so others hear your voice too) |
 | Discord (Voice & Video) / Teams (Devices) | Input / Microphone | `CABLE Output (VB-Audio Virtual Cable)` |
 | Discord / Teams | Output / Speaker | your real headset (never the cable) |
@@ -53,7 +53,7 @@ The app's routing diagram confirms it: the yellow line should read `Discord/Team
 
 ## Test the mic path
 1. `Win+R` → `mmsys.cpl` → **Recording** tab → *CABLE Output* → **Listen** → tick *Listen to this device* → pick your headphones.
-2. In the app, untick **Hear in headphones**, tick **Send to mic**, click a sound: you should hear it and see the CABLE Output bar move. Untick *Listen to this device* afterwards.
+2. In the app, set **Monitor** to *Off*, tick **Send to mic**, click a sound: you should hear it and see the CABLE Output bar move. Untick *Listen to this device* afterwards.
 
 ## Troubleshooting
 - "No virtual cable found": VB-Cable not installed, or no reboot since the install.

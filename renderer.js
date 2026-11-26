@@ -47,25 +47,25 @@ async function init() {
   fill($('micOut'), outputs, st.micOut); fill($('monOut'), outputs, st.monOut); fill($('micIn'), inputs, st.micIn);
   $('warn').hidden = outputs.some(o => /cable|virtual/i.test(o.label));
   if (!st.micOut) { const v = outputs.find(o => /cable input/i.test(o.label)); if (v) { $('micOut').value = v.deviceId; st.micOut = v.deviceId; } }
-  $('send').checked = !!st.send; $('mon').checked = st.mon !== false; $('vol').value = st.vol ?? 0.8;
-  eng.sendToMic = $('send').checked; eng.monitor = $('mon').checked; eng.setVolume(+$('vol').value);
+  $('send').checked = !!st.send; $('monMode').value = st.monMode ?? (st.hear ? (st.mon === false ? 'voice' : 'both') : st.mon === false ? 'off' : 'sounds'); $('vol').value = st.vol ?? 0.8;
+  eng.sendToMic = $('send').checked; eng.monitor = soundsHeard(); eng.setVolume(+$('vol').value);
   await eng.setMicSink($('micOut').value); await eng.setMonSink($('monOut').value);
   for (const s of cfg.sounds) await loadSound(s);
   render(); tInit();
   // Real mic mix is ON by default (sent to the virtual mic only, never to the headphones); saved choice wins.
-  $('mix').checked = st.mix !== false; $('hear').checked = !!st.hear;
-  if ($('mix').checked || $('hear').checked) try { await mic(); } catch (x) { $('mix').checked = $('hear').checked = false; say('Mic off: ' + x.message); }
+  $('mix').checked = st.mix !== false; 
+  if ($('mix').checked || voiceHeard()) try { await mic(); } catch (x) { $('mix').checked = false; $('monMode').value = soundsHeard() ? 'sounds' : 'off'; eng.monitor = soundsHeard(); say('Mic off: ' + x.message); }
 }
 const upd = (k, v) => { cfg.settings[k] = v; save(); };
 $('send').onchange = e => { eng.sendToMic = e.target.checked; upd('send', e.target.checked); };
-$('mon').onchange = e => { eng.monitor = e.target.checked; upd('mon', e.target.checked); };
+const soundsHeard = () => ['sounds', 'both'].includes($('monMode').value), voiceHeard = () => ['voice', 'both'].includes($('monMode').value);
+$('monMode').onchange = async e => { const old = cfg.settings.monMode ?? 'off'; eng.monitor = soundsHeard(); try { await mic(); upd('monMode', e.target.value); } catch (x) { say(x.message); e.target.value = old; eng.monitor = soundsHeard(); } };
 $('vol').oninput = e => { eng.setVolume(+e.target.value); upd('vol', +e.target.value); };
 $('micOut').onchange = e => { eng.setMicSink(e.target.value); upd('micOut', e.target.value); };
 $('monOut').onchange = e => { eng.setMonSink(e.target.value); upd('monOut', e.target.value); };
-$('micIn').onchange = async e => { upd('micIn', e.target.value); if ($('mix').checked || $('hear').checked) await mic(); };
-const mic = () => eng.setMic($('mix').checked, $('hear').checked, $('micIn').value);
+$('micIn').onchange = async e => { upd('micIn', e.target.value); if ($('mix').checked || voiceHeard()) await mic(); };
+const mic = () => eng.setMic($('mix').checked, voiceHeard(), $('micIn').value);
 $('mix').onchange = async e => { try { await mic(); upd('mix', e.target.checked); } catch (x) { say(x.message); e.target.checked = false; } };
-$('hear').onchange = async e => { try { await mic(); upd('hear', e.target.checked); } catch (x) { say(x.message); e.target.checked = false; } };
 $('stop').onclick = () => eng.stopAll();
 $('add').onclick = async () => { for (const p of await window.api.pick()) await addSound(p.split(/[\\/]/).pop().replace(/\.[^.]+$/, ''), p); };
 $('imp').onclick = async () => { const u = $('url').value.trim(); if (!u) return; say('Downloading…'); try { const r = await window.api.importUrl(u); await addSound(r.name, r.path); $('url').value = ''; say('Added: ' + r.name); } catch (e) { say('Import failed: ' + e.message); } };
