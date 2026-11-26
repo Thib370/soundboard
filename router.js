@@ -4,7 +4,8 @@ const { parse, parseLLM, yesNo } = require('./voice.js');
 const short = n => { const p = String(n).split(' | ').map(x => x.trim()).filter(Boolean); return p.length > 1 ? p[1] : p[0] || ''; };
 function createRouter({ getConnector, speak, play, stop, sounds, status, model }) {
   let pending = null;
-  const ask = (label, run) => { pending = { run, label, exp: Date.now() + 20000 }; status({ state: 'confirm', msg: label }); return speak(label + ' Say yes or no.'); };
+  // 60 s to answer, counted after the readback
+  const ask = (label, run) => { pending = { run, label, exp: Date.now() + 120000 }; status({ state: 'confirm', msg: label }); return speak(label + ' Say yes or no.').then(() => { if (pending) pending.exp = Date.now() + 60000; }); };
   const say = msg => { status({ state: 'idle', msg }); return speak(msg); };
   async function execute(it) {
     const c = getConnector(); if (!c) return say('No platform connected.');

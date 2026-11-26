@@ -16,6 +16,7 @@ class TeamsConnector extends Teams {
     this.need(); if (!text || text.length > 2000) throw new Error('Invalid message length');
     const opened = await this.ev(async i => { const e = document.querySelectorAll('[role=treeitem][aria-level="2"]')[i]; if (!e) return 'no-chat'; e.click(); await new Promise(r => setTimeout(r, 2500)); return document.title; }, index);
     if (opened === 'no-chat') throw new Error('Chat not found (list changed)');
+    await this.ev(async () => { for (let i = 0; i < 20 && !document.querySelector('[data-tid=ckeditor]'); i++) await new Promise(r => setTimeout(r, 500)); return 1; });
     await this.mcp.call('browser_type', { target: '[data-tid=ckeditor]', text });
     const typed = await this.ev(t => { const ck = document.querySelector('[data-tid=ckeditor]'); return ck && ck.innerText.trim() === t.trim() ? 'ok' : 'mismatch'; }, text);
     if (typed !== 'ok') throw new Error('Could not type the message (' + typed + ')');
