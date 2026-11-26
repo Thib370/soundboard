@@ -25,3 +25,7 @@ button{cursor:pointer}button:hover{background:#34343c}
 #grid.list .snd input.rename{flex:1;padding:.5rem}.snd .move{font-size:.75rem;padding:.2rem}
 #teams{margin:.8rem 0;border:1px solid #333;border-radius:8px;padding:.4rem .8rem;text-align:left}#teams summary{cursor:pointer}.badge{font-size:.75rem;color:#888;margin-left:.5rem}.badge.captions{color:#16a34a}.badge.connected{color:#fbbf24}#tLog div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #tRun.run{background:#16a34a;border-color:#16a34a;font-weight:600}
+#tCards{display:flex;flex-wrap:wrap;gap:.7rem;margin:1rem 0;text-align:left}#tCards .card{flex:1;min-width:230px;background:#202026;border:1px solid #333;border-radius:10px;padding:.6rem .8rem}
+#tCards h3{margin:0 0 .4rem;font-size:.8rem;color:#999;text-transform:uppercase;display:flex;justify-content:space-between}.big{font-size:1rem;font-weight:600;color:#888}.big.connected{color:#fbbf24}.big.captions{color:#16a34a}
+.alerts{max-height:150px;overflow:auto;font-size:.8rem}.al{padding:.2rem 0;border-bottom:1px solid #2c2c33;color:#aaa}.al.mention{color:#fff;font-weight:600}.mini{font-size:.65rem;padding:.1rem .4rem}
+.warnline{color:#fbbf24;font-size:.8rem;margin:.3rem 0}#callPad{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.4rem}#callPad .play{padding:.4rem .7rem;font-size:.85rem}

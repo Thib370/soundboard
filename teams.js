@@ -19,7 +19,9 @@ const READ = () => {
     const a = row && row.querySelector('[data-tid="author"]');
     out.push({ s: (a && a.textContent || '').trim(), t: (e.textContent || '').trim() });
   });
-  return out;
+  const mic = document.getElementById('microphone-button'), label = mic ? (mic.getAttribute('aria-label') || '') : '';
+  const title = (document.title || '').replace(/\s*\|\s*Microsoft Teams\s*$/i, '').replace(/^(Conversation|Chat|Calendar|Calendrier)\s*\|\s*/i, '');
+  return { lines: out, call: { inCall: !!mic, muted: /r[ée]activer|unmute|activer le micro/i.test(label), title } };
 };
 // Minimal MCP (streamable HTTP) client, used to read the Teams tab through `@playwright/mcp --extension` (the Playwright MCP Bridge browser plugin).
 class Mcp {
@@ -76,6 +78,7 @@ class Teams {
       if (!this.page || this.page.isClosed()) { this.page = this.findPage(); if (!this.page) return this.set('connected', 'No Teams tab found'); }
       lines = await this.page.evaluate(READ).catch(() => null); }
     if (!lines || (!this.mcp && !this.browser)) return;
+    const call = lines.call; lines = lines.lines; const ck = JSON.stringify(call); if (ck !== this.callKey) { this.callKey = ck; this.emit('call', call); }
     if (!lines.length) return this.set('connected', 'Teams tab found, no captions (turn on live captions in the call)');
     this.set('captions', 'Reading live captions');
     if (!this.cfg.listen) return;

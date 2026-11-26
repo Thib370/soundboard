@@ -110,10 +110,10 @@ $('tConn').onclick = async () => { runMode = 'cdp'; if (tOn) { await window.api.
 $('tLaunch').onclick = async () => { try { await window.api.teamsLaunch(); say('Chrome started. Sign in to Teams, join a call, then click Connect.'); } catch (e) { say(e.message); } };
 // One click: connect (launching Chrome first if the debug port is closed), then listen.
 let running = false;
-const labels = () => { $('tRun').textContent = running && runMode === 'cdp' ? '■ Stop Teams' : '▶ Run Teams'; $('tPlug').textContent = running && runMode === 'bridge' ? '■ Disconnect plugin' : '🔌 Connect via Playwright plugin'; $('tRun').disabled = running && runMode === 'bridge'; $('tPlug').disabled = running && runMode === 'cdp'; };
+const labels = () => { $('tRun').textContent = running && runMode === 'cdp' ? '■ Stop Teams' : '▶ Run Teams'; $('tPlug').textContent = running && runMode === 'bridge' ? '■ Disconnect plugin' : '🔌 Plugin'; $('tRun').disabled = running && runMode === 'bridge'; $('tPlug').disabled = running && runMode === 'cdp'; };
 async function runTeams(mode = 'cdp') {
   if (running) { running = false; $('tListen').checked = false; tSave(); await window.api.teamsDisconnect(); tOn = false; labels(); $('tConn').textContent = 'Connect'; return; }
-  runMode = mode; running = true; labels(); $('teams').open = true; $('tListen').checked = true; tSave();
+  runMode = mode; running = true; labels(); $('tListen').checked = true; tSave();
   $('tStatus').textContent = $('tStatus2').textContent = 'Starting…'; let ok = await window.api.teamsConnect(tcfg());
   if (!ok && mode === 'cdp') { try { await window.api.teamsLaunch(); } catch (e) { running = false; labels(); const m = e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''); $('tStatus').textContent = $('tStatus2').textContent = m; say(m); return; }
     $('tStatus').textContent = $('tStatus2').textContent = 'Chrome started: sign in to Teams and join a call. Connecting…';
@@ -123,9 +123,21 @@ async function runTeams(mode = 'cdp') {
   tOn = true; $('tConn').textContent = 'Disconnect';
 }
 $('tRun').onclick = () => runTeams('cdp'); $('tPlug').onclick = () => runTeams('bridge');
-window.api.onTeamsStatus(s => { const b = $('tBadge'); b.textContent = '● ' + ({ disconnected: 'off', connected: 'connected', captions: 'listening' }[s.state] || s.state); b.className = 'badge ' + s.state; $('tStatus').textContent = $('tStatus2').textContent = s.detail || ''; if ((s.detail === 'Chrome closed' || s.detail === 'Plugin process stopped') && running) { running = false; labels(); }
+window.api.onTeamsStatus(s => { const st = $('tState'); st.textContent = '● ' + ({ disconnected: 'Not connected', connected: 'Connected', captions: 'Connected, reading captions' }[s.state] || s.state); st.className = 'big ' + s.state; $('tStatus').textContent = $('tStatus2').textContent = s.detail || ''; if ((s.detail === 'Chrome closed' || s.detail === 'Plugin process stopped') && running) { running = false; labels(); }
+  if (s.state === 'disconnected') { callState = { inCall: false }; callCard(); }
   if (s.state === 'disconnected' && !running) { tOn = false; $('tConn').textContent = 'Connect'; } });
-window.api.onTeamsLog(l => { const d = document.createElement('div'); d.textContent = new Date(l.t).toLocaleTimeString() + ' ' + l.who + ': ' + l.msg; $('tLog').prepend(d); while ($('tLog').children.length > 10) $('tLog').lastChild.remove(); });
+window.api.onTeamsLog(l => { const box = $('tLog'); if (box.querySelector('.hint')) box.innerHTML = ''; const d = document.createElement('div'); d.className = l.kind === 'mention' ? 'al mention' : 'al'; d.textContent = new Date(l.t).toLocaleTimeString() + ' ' + l.who + ': ' + l.msg; box.prepend(d); while (box.children.length > 20) box.lastChild.remove(); });
+$('aClear').onclick = () => { $('tLog').innerHTML = '<span class="hint">No alerts. Messages addressed to you show here.</span>'; };
+let callState = { inCall: false };
+function callCard() {
+  const c = callState, pad = $('callPad'); pad.innerHTML = '';
+  $('callInfo').textContent = c.inCall ? 'In call: ' + (c.title || 'Teams meeting') : (running ? 'Not in a call.' : 'Not connected.');
+  $('callMuted').hidden = !(c.inCall && c.muted);
+  if (!c.inCall) return;
+  const folder = T().replyFolder || '', list = cfg.sounds.filter(s => (s.folder || '') === folder);
+  (list.length ? list : cfg.sounds).slice(0, 12).forEach(s => { const b = document.createElement('button'); b.className = 'play'; b.textContent = s.name; b.onclick = () => eng.play(s.id); pad.append(b); });
+}
+window.api.onTeamsCall(c => { callState = c; callCard(); });
 window.api.onPlay(id => eng.play(id)); window.api.onStop(() => eng.stopAll());
 init();
 

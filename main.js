@@ -33,9 +33,9 @@ function showPopup(men) {
   popup.setAlwaysOnTop(true, 'screen-saver'); popup.loadFile('popup.html');
   popup.webContents.once('did-finish-load', () => { popup.webContents.send('popup-data', { ...pending, timeout: t.timeout ?? 15 }); popup.showInactive(); });
   popupKeys(true); popupTimer = setTimeout(() => choose(null), (t.timeout ?? 15) * 1000); send('teams-popup', true);
-  send('teams-log', { t: Date.now(), msg: 'Mention: ' + men.text, who: men.speaker });
+  send('teams-log', { t: Date.now(), msg: men.text, who: men.speaker, kind: 'mention' });
 }
-const teams = new Teams((ev, d) => { if (ev === 'status') send('teams-status', d); else if (ev === 'mention') showPopup(d); });
+const teams = new Teams((ev, d) => { if (ev === 'status') send('teams-status', d); else if (ev === 'mention') showPopup(d); else if (ev === 'call') send('teams-call', d); });
 function findChrome() { const c = [process.env.LOCALAPPDATA + '\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe']; return c.find(p => fs.existsSync(p)); }
 app.whenReady().then(() => {
   ipcMain.handle('teams-connect', (_, c) => teams.connect(c));
