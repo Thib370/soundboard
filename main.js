@@ -51,7 +51,27 @@ function showPopup(men) {
   } catch (e) { closePopup(); }
 }
 const teams = new Teams((ev, d) => { if (ev === 'status') send('teams-status', d); else if (ev === 'mention') showPopup(d); else if (ev === 'call') send('teams-call', d); });
-function findChrome() { const c = [process.env.LOCALAPPDATA + '\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe']; return c.find(p => fs.existsSync(p)); }
+// Local summary through Ollama (127.0.0.1:11434). Returns null if Ollama or the model is missing: the plain list is shown instead.
+async function summarize(b) {
+  if (!b.unread || !b.unread.length) return null;
+  const items = b.unread.slice(0, 25).map(u => `- ${u.title}${u.time ? ' (' + u.time + ')' : ''}: ${u.message}`.slice(0, 240)).join('\n'), meets = (b.meetings || []).map(x => `- ${x.start}-${x.end} ${x.title}`).join('\n');
+  const prompt = `You write a morning brief from Teams data. Rules: use ONLY facts in the data; no advice, no generic tips, no deadlines or times that are not in the data; one short bullet per unread chat saying who wrote and what they ask (put urgent or direct questions first), then one line listing today's meetings with their times. Max 6 bullets. If a field is missing, skip it.\n\nUNREAD CHATS:\n${items}\n\nTODAY'S MEETINGS:\n${meets || '(none)'}`;
+  try { const model = (load().teams || {}).model || 'qwen2.5:7b';
+    const r = await fetch('http://127.0.0.1:11434/api/generate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model, prompt, stream: false, keep_alive: '5m', options: { temperature: 0.2, num_ctx: 4096 } }), signal: AbortSignal.timeout(120000) });
+    if (!r.ok) return null; return String((await r.json()).response || '').trim() || null; } catch { return null; }
+}
+let briefBusy = false;
+async function runBrief() {
+  if (briefBusy) return; briefBusy = true; send('teams-brief', { busy: true });
+  try { const b = await teams.brief(); send('teams-brief', { ...b, summarizing: !!(b.unread && b.unread.length) }); const s = await summarize(b); send('teams-brief', { ...b, summary: s, summarizing: false }); }
+  catch (e) { send('teams-brief', { at: Date.now(), unread: null, meetings: null, note: e.message.slice(0, 120) }); }
+  finally { briefBusy = false; }
+}
+function findChrome() {
+  const L = process.env.LOCALAPPDATA || '', P = process.env.ProgramFiles || 'C:\\Program Files', X = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+  const c = [P + '\\BraveSoftware\\Brave-Browser\\Application\\brave.exe', L + '\\BraveSoftware\\Brave-Browser\\Application\\brave.exe', X + '\\Microsoft\\Edge\\Application\\msedge.exe', P + '\\Microsoft\\Edge\\Application\\msedge.exe', P + '\\Google\\Chrome\\Application\\chrome.exe', L + '\\Google\\Chrome\\Application\\chrome.exe', X + '\\Google\\Chrome\\Application\\chrome.exe'];
+  return c.find(p => fs.existsSync(p));
+}
 const gotLock = app.requestSingleInstanceLock(); if (!gotLock) app.quit();
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
 app.whenReady().then(() => {
@@ -61,16 +81,17 @@ app.whenReady().then(() => {
     getCfg: () => { try { return { bridge: JSON.parse(fs.readFileSync(bf(), 'utf8')) }; } catch { return {}; } },
     saveCfg: c => { fs.mkdirSync(data(), { recursive: true }); const t = bf() + '.tmp'; fs.writeFileSync(t, JSON.stringify(c.bridge, null, 1)); fs.renameSync(t, bf()); },
     validId: id => load().sounds.some(s => s.id === id),
-    onCommand: c => c.t === 'stop' ? send('stop') : send('play', c.id),
+    onCommand: c => c.t === 'stop' ? send('stop') : c.t === 'brief' ? runBrief() : send('play', c.id),
   });
   ipcMain.on('bridge-push', (_, s) => bridge && bridge.push(s));
   ipcMain.handle('bridge-info', () => bridge.info());
   ipcMain.handle('bridge-rotate', () => bridge.rotate());
   ipcMain.handle('bridge-allow', (_, o) => bridge.allowOrigin(String(o).trim()));
+  ipcMain.handle('teams-brief', () => { runBrief(); return true; });
   ipcMain.handle('teams-connect', (_, c) => teams.connect(c));
   ipcMain.handle('teams-disconnect', () => teams.disconnect());
   ipcMain.handle('teams-config', (_, c) => { if (teams.cfg) teams.cfg = { ...teams.cfg, ...c }; });
-  ipcMain.handle('teams-launch', () => { const exe = findChrome(); if (!exe) throw new Error('Chrome not found'); spawn(exe, ['--remote-debugging-port=9222', '--user-data-dir=' + path.join(data(), 'chrome-teams'), 'https://teams.microsoft.com'], { detached: true, stdio: 'ignore' }).unref(); return true; });
+  ipcMain.handle('teams-launch', () => { const exe = findChrome(); if (!exe) throw new Error('No Brave, Edge or Chrome found'); spawn(exe, ['--remote-debugging-port=9222', '--user-data-dir=' + path.join(data(), 'chrome-teams'), 'https://teams.microsoft.com'], { detached: true, stdio: 'ignore' }).unref(); return true; });
   ipcMain.on('popup-choice', (_, id) => choose(id));
   win = new BrowserWindow({ width: 680, height: 900, autoHideMenuBar: true, webPreferences: { preload: path.join(__dirname, 'preload.js') } });
   win.loadFile('index.html');

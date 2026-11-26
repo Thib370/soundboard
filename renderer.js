@@ -52,6 +52,7 @@ async function init() {
   try { await eng.setMicSink($('micOut').value); await eng.setMonSink($('monOut').value); } catch (x) { say('Output device unavailable: ' + x.message); }
   for (const s of cfg.sounds) await loadSound(s);
   render(); tInit(); bridgeUi().catch(() => {}); pushState();
+  if (T().autoStart !== false) runTeams('cdp');
   // Real mic mix is ON by default (sent to the virtual mic only, never to the headphones); saved choice wins.
   $('mix').checked = st.mix !== false; 
   if ($('mix').checked || voiceHeard()) try { await mic(); } catch (x) { $('mix').checked = false; $('monMode').value = soundsHeard() ? 'sounds' : 'off'; eng.monitor = soundsHeard(); say('Mic off: ' + x.message); }
@@ -99,11 +100,11 @@ $('view').onclick = () => { cfg.settings.list = !cfg.settings.list; save(); rend
 const T = () => (cfg.teams ||= { aliases: 'Thib, Thibault, Thibu', ignoreSelf: true, cooldown: 30, timeout: 15, replyFolder: '', listen: false, self: '' });
 let runMode = 'cdp';
 const tcfg = () => ({ ...T(), endpoint: 'http://127.0.0.1:9222', mode: runMode });
-const tSave = () => { const t = T(); t.aliases = $('tAlias').value; t.bridgeToken = $('tToken').value.trim(); t.self = $('tMe').value; t.ignoreSelf = $('tSelf').checked; t.listen = $('tListen').checked; t.replyFolder = $('tFolder').value; t.timeout = +$('tTimeout').value || 15; t.cooldown = +$('tCool').value || 30; save(); window.api.teamsConfig(tcfg()); };
+const tSave = () => { const t = T(); t.aliases = $('tAlias').value; t.bridgeToken = $('tToken').value.trim(); t.self = $('tMe').value; t.ignoreSelf = $('tSelf').checked; t.autoStart = $('tAuto').checked; t.listen = $('tListen').checked; t.replyFolder = $('tFolder').value; t.timeout = +$('tTimeout').value || 15; t.cooldown = +$('tCool').value || 30; save(); window.api.teamsConfig(tcfg()); };
 function tInit() {
-  const t = T(); $('tAlias').value = t.aliases; $('tToken').value = t.bridgeToken || ''; $('tMe').value = t.self || ''; $('tSelf').checked = t.ignoreSelf !== false; $('tListen').checked = !!t.listen; $('tTimeout').value = t.timeout; $('tCool').value = t.cooldown;
+  const t = T(); $('tAlias').value = t.aliases; $('tToken').value = t.bridgeToken || ''; $('tMe').value = t.self || ''; $('tSelf').checked = t.ignoreSelf !== false; $('tAuto').checked = t.autoStart !== false; $('tListen').checked = !!t.listen; $('tTimeout').value = t.timeout; $('tCool').value = t.cooldown;
   $('tFolder').innerHTML = '<option value="">Unsorted</option>' + cfg.folders.map(f => `<option>${f.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</option>`).join(''); $('tFolder').value = t.replyFolder || '';
-  ['tAlias', 'tToken', 'tMe', 'tSelf', 'tListen', 'tFolder', 'tTimeout', 'tCool'].forEach(id => $(id).onchange = tSave);
+  ['tAuto', 'tAlias', 'tToken', 'tMe', 'tSelf', 'tListen', 'tFolder', 'tTimeout', 'tCool'].forEach(id => $(id).onchange = tSave);
 }
 let tOn = false;
 $('tConn').onclick = async () => { runMode = 'cdp'; if (tOn) { await window.api.teamsDisconnect(); tOn = false; $('tConn').textContent = 'Connect'; return; } tSave(); tOn = await window.api.teamsConnect(tcfg()); $('tConn').textContent = tOn ? 'Disconnect' : 'Connect'; };
@@ -120,7 +121,7 @@ async function runTeams(mode = 'cdp') {
     for (let i = 0; i < 20 && running && !ok; i++) { await new Promise(r => setTimeout(r, 3000)); if (running) ok = await window.api.teamsConnect(tcfg()); }
   }
   if (!running) return; if (!ok) { running = false; labels(); return; }
-  tOn = true; $('tConn').textContent = 'Disconnect';
+  tOn = true; $('tConn').textContent = 'Disconnect'; window.api.teamsBrief();
 }
 $('tRun').onclick = () => runTeams('cdp'); $('tPlug').onclick = () => runTeams('bridge');
 window.api.onTeamsStatus(s => { teamsState = { state: s.state, detail: s.detail || '' }; pushState(); const st = $('tState'); st.textContent = '● ' + ({ disconnected: 'Not connected', connected: 'Connected', captions: 'Connected, reading captions' }[s.state] || s.state); st.className = 'big ' + s.state; $('tStatus').textContent = $('tStatus2').textContent = s.detail || ''; if ((s.detail === 'Chrome closed' || s.detail === 'Plugin process stopped') && running) { running = false; labels(); }
@@ -146,10 +147,23 @@ $('editTog').onclick = () => { document.body.classList.toggle('edit'); $('editTo
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName)) eng.stopAll(); });
 // ---- PROne bridge: push live state to the local server, show pairing info ----
 let alertsList = [], teamsState = { state: 'disconnected', detail: '' }, pushT = null;
-const pushState = () => { if (pushT) return; pushT = setTimeout(() => { pushT = null; window.api.bridgePush({ teams: teamsState, call: callState, alerts: alertsList.slice(0, 20), playing: [...eng.byKey.keys()], samples: cfg.sounds.map(s => ({ id: s.id, name: s.name, folder: s.folder || '', gain: s.gain ?? DEF_GAIN })) }); }, 100); };
+const pushState = () => { if (pushT) return; pushT = setTimeout(() => { pushT = null; window.api.bridgePush({ teams: teamsState, call: callState, alerts: alertsList.slice(0, 20), brief: briefState && { at: briefState.at, busy: !!briefState.busy, summarizing: !!briefState.summarizing, summary: briefState.summary || '', note: briefState.note || '', unread: (briefState.unread || []).slice(0, 10).map(u => ({ title: u.title, message: String(u.message).slice(0, 200), time: u.time })), meetings: briefState.meetings || null }, playing: [...eng.byKey.keys()], samples: cfg.sounds.map(s => ({ id: s.id, name: s.name, folder: s.folder || '', gain: s.gain ?? DEF_GAIN })) }); }, 100); };
 async function bridgeUi() { const i = await window.api.bridgeInfo(); $('brCode').textContent = i.token; $('brInfo').textContent = i.port ? 'port ' + i.port + ' · ' + i.clients + ' connected' : 'server not running (ports busy)'; $('brCopy').onclick = () => { navigator.clipboard.writeText('http://192.168.1.11/#/soundboard?sb=' + i.token); say('Link copied'); }; }
 $('brRot').onclick = async () => { await window.api.bridgeRotate(); bridgeUi(); };
 $('brAllow').onclick = async () => { try { await window.api.bridgeAllow($('brOrigin').value); $('brOrigin').value = ''; say('Site allowed'); } catch (e) { say(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')); } };
+// ---- Morning brief card ----
+let briefState = null;
+function briefCard(b) {
+  briefState = b; const note = $('briefNote'), sum = $('briefSum'), ul = $('briefUnread'), ml = $('briefMeet');
+  ul.replaceChildren(); ml.replaceChildren(); sum.textContent = '';
+  if (b.busy) { note.textContent = 'Reading Teams…'; return pushState(); }
+  note.textContent = b.unread ? (b.unread.length ? b.unread.length + ' unread chat(s)' : 'No unread chats.') + (b.note ? ' · ' + b.note : '') : (b.note || 'Not loaded.');
+  if (b.summarizing) sum.textContent = 'Summarizing locally…'; else if (b.summary) sum.textContent = b.summary;
+  (b.unread || []).slice(0, 10).forEach(u => { const d = document.createElement('div'); d.textContent = u.title + (u.time ? ' · ' + u.time : '') + (u.message ? ' — ' + u.message : ''); ul.append(d); });
+  if (b.meetings) { const h = document.createElement('div'); h.className = 'hint'; h.textContent = b.meetings.length ? 'Today' : 'No meetings today.'; ml.append(h); b.meetings.forEach(x => { const d = document.createElement('div'); d.textContent = x.start + '–' + x.end + ' ' + x.title + (x.link ? ' 🔗' : ''); ml.append(d); }); }
+  pushState();
+}
+window.api.onTeamsBrief(briefCard); $('briefGo').onclick = () => window.api.teamsBrief();
 // Live routing diagram: who plays, where it goes, and levels.
 const nameOf = id => cfg.sounds.find(s => s.id === id)?.name || id;
 const optName = sel => { if (sel.value) return sel.selectedOptions[0]?.textContent || sel.value; const d = [...sel.options].find(o => o.value === 'default'); return d ? d.textContent : 'System default'; };

@@ -8,6 +8,7 @@
 </div><p id="msg" class="msg"></p></header>
 <button id="stop" title="Esc or Ctrl+Alt+0">■ STOP</button>
 <section id="tCards">
+ <div class="card brief" id="briefCard"><h3>☀ Morning brief <button id="briefGo" class="mini">refresh</button></h3><div id="briefNote" class="hint">Click ▶ Run Teams to load it.</div><div id="briefSum"></div><div id="briefUnread" class="blist"></div><div id="briefMeet" class="blist"></div></div>
  <div class="card"><h3>Teams</h3><div id="tState" class="big">● Not connected</div><div id="tStatus2" class="hint"></div>
   <div class="row"><button id="tRun" class="run">▶ Run Teams</button><button id="tPlug" class="run" title="Use the Playwright MCP Bridge extension in your own browser (Brave)">🔌 Plugin</button></div><span id="tBadge" hidden>● off</span></div>
  <div class="card"><h3>Alerts <button id="aClear" class="mini">clear</button></h3><div id="tLog" class="alerts"><span class="hint">No alerts. Messages addressed to you show here.</span></div></div>
@@ -49,7 +50,7 @@
  <div class="row"><input id="brOrigin" size="28" placeholder="Allow another site, e.g. http://100.1.2.3"><button id="brAllow">Allow</button></div>
  <p class="hint">Open the link in your browser: the PROne Soundboard page then mirrors this app (Teams state, alerts, your samples) and plays through it. Only this PC can connect.</p></details>
 <details id="teams"><summary>Advanced Teams settings</summary>
- <div class="row"><button id="tLaunch">Launch Chrome for Teams</button><button id="tConn">Connect</button><label><input type="checkbox" id="tListen"> Listen for mentions</label><label><input type="checkbox" id="tSelf" checked> Ignore my own name</label></div>
+ <div class="row"><button id="tLaunch">Launch Chrome for Teams</button><button id="tConn">Connect</button><label><input type="checkbox" id="tListen"> Listen for mentions</label><label><input type="checkbox" id="tSelf" checked> Ignore my own name</label><label title="Open the browser and read Teams when this app starts"><input type="checkbox" id="tAuto" checked> Brief at app start</label></div>
  <div class="row"><label title="Optional. Sets PLAYWRIGHT_MCP_EXTENSION_TOKEN for the plugin so the browser extension connects without asking. Stored only in this PC's config.json.">Plugin token <input id="tToken" type="password" size="22" placeholder="optional"></label></div>
  <div class="row"><label>Aliases <input id="tAlias" size="28" value="Thib, Thibault, Thibu"></label><label>My Teams name <input id="tMe" size="16" placeholder="Thibault Havard"></label></div>
  <div class="row"><label>Reply folder <select id="tFolder"></select></label><label>Popup (s) <input id="tTimeout" type="number" min="5" max="60" value="15" style="width:4em"></label><label>Cooldown (s) <input id="tCool" type="number" min="5" max="300" value="30" style="width:4em"></label></div>

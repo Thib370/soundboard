@@ -7,9 +7,12 @@ function startBridge({ getCfg, saveCfg, validId, onCommand, ports = [8790, 8791,
   const clients = new Set(); let state = {}, seq = 0, port = 0, badTokens = [], lockUntil = 0, throttle = null;
   const cfg = () => { const c = getCfg(); c.bridge ||= {}; if (!c.bridge.token) { c.bridge.token = newToken(); c.bridge.origins ||= []; saveCfg(c); } return c; };
   const origins = () => [...DEFAULT_ORIGINS, ...(cfg().bridge.origins || [])];
-  const cors = (req, res) => { const o = req.headers.origin; if (o && origins().includes(o)) { res.setHeader('Access-Control-Allow-Origin', o); res.setHeader('Vary', 'Origin'); res.setHeader('Access-Control-Allow-Private-Network', 'true'); res.setHeader('Access-Control-Allow-Headers', 'content-type'); } };
-  const server = http.createServer((req, res) => { cors(req, res); if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
-    if (req.url === '/health') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ app: 'soundboard-mic', proto: 1 })); } res.writeHead(404); res.end(); });
+  // /health is readable from any origin (it only says "an app is running" and whether THIS origin is allowed), so pages on other addresses stay silent instead of logging CORS errors.
+  const server = http.createServer((req, res) => {
+    const o = req.headers.origin; res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Private-Network', 'true'); res.setHeader('Access-Control-Allow-Headers', 'content-type');
+    if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+    if (req.url === '/health') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ app: 'soundboard-mic', proto: 1, allowed: !!o && origins().includes(o) })); }
+    res.writeHead(404); res.end(); });
   const wss = new WebSocketServer({ noServer: true, maxPayload: 4096 });
   server.on('upgrade', (req, sock, head) => {
     const ra = req.socket.remoteAddress; if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(ra) || clients.size >= 8 || Date.now() < lockUntil || !origins().includes(req.headers.origin || '')) { sock.write('HTTP/1.1 403 Forbidden\r\n\r\n'); return sock.destroy(); }
@@ -32,6 +35,7 @@ function startBridge({ getCfg, saveCfg, validId, onCommand, ports = [8790, 8791,
       if (!authed) return ws.close(4401);
       cmds = cmds.filter(x => Date.now() - x < 10000); cmds.push(Date.now()); if (cmds.length > 20) return ws.close(4429);
       if (m.t === 'ping') return send(ws, { t: 'pong', ts: Date.now() });
+      if (m.t === 'brief') { onCommand({ t: 'brief' }); return send(ws, { t: 'ack', id: 'brief', ok: true }); }
       if (m.t === 'sync') return send(ws, snapshot());
       if (m.t === 'stop') { onCommand({ t: 'stop' }); return send(ws, { t: 'ack', id: 'stop', ok: true }); }
       if (m.t === 'play') { if (typeof m.id !== 'string' || !validId(m.id)) return send(ws, { t: 'error', code: 'unknown-id' }); onCommand({ t: 'play', id: m.id }); return send(ws, { t: 'ack', id: 'play', ok: true }); }

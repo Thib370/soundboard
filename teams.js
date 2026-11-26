@@ -25,6 +25,37 @@ const READ = () => {
   const title = (document.title || '').replace(/\s*\|\s*Microsoft Teams\s*$/i, '').replace(/^(Conversation|Chat|Calendar|Calendrier)\s*\|\s*/i, '');
   return { lines: out, call: { inCall: !!mic, muted: /r[ée]activer|unmute|activer le micro/i.test(label), title } };
 };
+// ---- Morning brief: unread chats (Teams' own "Unread" filter, restored afterwards) + today's meetings (Calendar app, then back) ----
+const UNREAD = async () => {
+  const chip = [...document.querySelectorAll('button')].find(b => /^\s*(non lu|unread)/i.test(b.innerText || ''));
+  if (!chip) return { ok: false };
+  const was = chip.getAttribute('aria-pressed') === 'true'; if (!was) chip.click();
+  await new Promise(r => setTimeout(r, 1500));
+  const nm = e => (e.getAttribute('aria-labelledby') || '').split(' ').filter(Boolean).map(i => (document.getElementById(i) || {}).innerText || '').join(' | ').replace(/\s+/g, ' ');
+  const rows = [...document.querySelectorAll('[role=treeitem][aria-level="2"]')].filter(e => e.getClientRects().length).map(nm).filter(Boolean);
+  if (!was) chip.click();
+  return { ok: true, rows };
+};
+const GO_APP = (names) => {
+  const nav = document.querySelector('[role=navigation][aria-label*="pplication" i]') || document;
+  const bs = [...nav.querySelectorAll('button')], lab = b => (b.getAttribute('aria-label') || b.innerText || '').trim();
+  const prev = bs.find(b => b.getAttribute('aria-pressed') === 'true'); const want = bs.find(b => names.some(n => n.test(lab(b))));
+  if (!want) return null; want.click(); return prev ? lab(prev) : '';
+};
+const parseUnread = rows => rows.map(r => { const p = r.split(/\s*\|\s*/).map(s => s.trim()).filter(Boolean); const i = p.findIndex(s => /^(dernier message|last message)$/i.test(s));
+  return { kind: p[0] || '', title: p[1] || '', message: i >= 0 ? (p[i + 1] || '') : '', time: i >= 0 ? (p[i + 2] || '') : '' }; });
+const MONTHS = { fr: ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'], en: ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'] };
+function parseMeetings(labels, now = new Date()) {
+  const d = now.getDate(), mi = now.getMonth(), low = s => s.toLowerCase(), seen = new Set(), out = [];
+  for (const l of labels) {
+    const parts = l.split(', '), ti = parts.findIndex(s => /^\d{1,2}:\d{2}(\s*[AP]M)?\s*(à|to|-|–)\s*\d{1,2}:\d{2}(\s*[AP]M)?$/i.test(s)); if (ti < 1) continue;
+    const L = low(l), today = [`${d} ${MONTHS.fr[mi]}`, `${d} ${MONTHS.en[mi]}`, `${MONTHS.en[mi]} ${d}`].some(k => L.includes(k)); if (!today) continue;
+    const title = parts.slice(0, ti).join(', '), [start, end] = parts[ti].split(/\s*(?:à|to|-|–)\s*/).map(s => s.replace(/\s*[AP]M$/i, m => m));
+    if (/^(canceled|cancelled|annulé)/i.test(title) || seen.has(title + start)) continue; seen.add(title + start);
+    out.push({ title, start, end, link: /teams meeting|réunion microsoft teams|microsoft teams/i.test(l) });
+  }
+  return out.sort((a, b) => a.start.padStart(5, '0').localeCompare(b.start.padStart(5, '0')));
+}
 // Minimal MCP (streamable HTTP) client, used to read the Teams tab through `@playwright/mcp --extension` (the Playwright MCP Bridge browser plugin).
 class Mcp {
   constructor(url) { this.url = url; this.id = 0; this.sid = null; }
@@ -76,6 +107,23 @@ class Teams {
   }
   async disconnect() { this.gen++; clearInterval(this.timer); this.timer = null; this.page = null; if (this.mcp) { this.mcp = null; } if (this.proc) { const p = this.proc; this.proc = null; try { process.platform === 'win32' ? spawn('taskkill', ['/pid', String(p.pid), '/t', '/f'], { stdio: 'ignore' }) : process.kill(-p.pid); } catch { try { p.kill(); } catch {} } } if (this.browser) { const b = this.browser; this.browser = null; await b.close().catch(() => {}); } this.set('disconnected', ''); }
   findPage() { const re = new RegExp(this.cfg.urlMatch || 'teams\\.(microsoft|cloud\\.microsoft)|mcas\\.ms', 'i'); for (const c of this.browser.contexts()) for (const p of c.pages()) if (re.test(p.url())) return p; return null; }
+  async brief() {
+    if (!this.browser && !this.mcp) throw new Error('Not connected to Teams');
+    const res = { at: Date.now(), unread: null, meetings: null, note: '' };
+    const evalTop = async fn => this.mcp ? parseResult(await this.mcp.call('browser_evaluate', { function: `() => (${fn.toString()})()` })) : (this.page || this.findPage() || (() => { throw new Error('No Teams tab found'); })()).evaluate(fn);
+    let u = null; for (let i = 0; i < 20 && !u?.ok; i++) { u = await evalTop(UNREAD).catch(() => null); if (!u?.ok) await new Promise(r => setTimeout(r, 3000)); }
+    if (!u?.ok) { res.note = 'Teams chat list not ready (sign in to Teams in the opened browser)'; return res; }
+    res.unread = parseUnread(u.rows);
+    if (this.mcp) { res.note = 'Calendar is only read in "Run Teams" mode'; return res; }
+    try {
+      const page = this.page || this.findPage(), prev = await page.evaluate(GO_APP, [/^calend/i]);
+      if (prev === null) { res.note = 'Calendar button not found'; return res; }
+      let labels = []; for (let i = 0; i < 16 && !labels.length; i++) { await new Promise(r => setTimeout(r, 700)); for (const f of page.frames()) labels.push(...await f.evaluate(() => [...document.querySelectorAll('button[aria-label]')].map(b => b.getAttribute('aria-label')).filter(l => /\d{1,2}:\d{2}/.test(l))).catch(() => [])); }
+      res.meetings = parseMeetings(labels);
+      if (prev) await page.evaluate(GO_APP, [new RegExp('^' + prev.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i')]);
+    } catch (e) { res.note = 'Calendar not read: ' + e.message.slice(0, 80); }
+    return res;
+  }
   async tick() {
     if (!this.mcp && !this.browser) return;
     if (this.busy && Date.now() - this.busy > 20000) this.busy = 0;
@@ -102,4 +150,4 @@ class Teams {
     for (const [k, v] of this.seen) if (Date.now() - v > 120000) this.seen.delete(k);
   }
 }
-module.exports = { Teams, matchAlias };
+module.exports = { Teams, matchAlias, parseUnread, parseMeetings };
