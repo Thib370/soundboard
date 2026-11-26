@@ -97,7 +97,7 @@ class Teams {
       const hit = list.split('\n').map(l => l.match(/^- (\d+):.*\(([^)\s]+)\)/)).find(m => m && re.test(m[2]));
       if (!this.mcp) return null;
       if (!hit) {
-        if (!this.openedTeams) { this.openedTeams = true; this.set('connected', 'No Teams tab: opening Teams in Brave…'); try { await this.mcp.call('browser_tabs', { action: 'new', url: 'https://teams.microsoft.com/' }); } catch {} return null; }
+        if (!this.openedTeams) { this.openedTeams = true; this.set('connected', 'No Teams tab: opening Teams in Brave…'); try { await this.mcp.call('browser_tabs', { action: 'new', url: 'https://teams.cloud.microsoft.mcas.ms/' }); } catch {} return null; }
         this.set('connected', 'No Teams tab found in the plugin browser (sign in to Teams there)'); return null; }
       await this.mcp.call('browser_tabs', { action: 'select', index: +hit[1] }); this.tabOk = true;
     }
@@ -118,13 +118,14 @@ class Teams {
   async join(title) {
     if (!this.mcp) throw new Error('Joining needs the plugin connection (click ▶ Run Teams)');
     if (!(await this.bridgeLines())) throw new Error('Teams tab not available');
-    const ev = async (fn, arg) => parseResult(await this.mcp.call('browser_evaluate', { function: `() => (${fn.toString()})(${JSON.stringify(arg)})` }));
+    const ev = async (fn, arg) => { for (let k = 0; ; k++) { try { return parseResult(await this.mcp.call('browser_evaluate', { function: `() => (${fn.toString()})(${JSON.stringify(arg)})` })); } catch (e) { if (k >= 20) throw e; await new Promise(r => setTimeout(r, 1000)); } } }; // retries: the page navigates when the pre-join screen opens
     const r1 = await ev(async t => {
       if (document.querySelector('#microphone-button')) return 'already';
+      if (document.querySelector('[data-tid="prejoin-join-button"]')) return 'clicked';
       const nm = e => (e.getAttribute('aria-labelledby') || '').split(' ').filter(Boolean).map(i => (document.getElementById(i) || {}).innerText || '').join(' | ');
       const e = [...document.querySelectorAll('[role=treeitem][aria-level="2"]')].find(x => nm(x).toLowerCase().includes(t.toLowerCase()) && /réunion|meeting/i.test(nm(x)));
       if (!e) return 'no-chat'; e.click(); await new Promise(r => setTimeout(r, 2500));
-      const b = document.querySelector('[data-tid="chat-join-button"]'); if (!b) return 'no-join'; b.click(); return 'clicked'; }, title);
+      const b = document.querySelector('[data-tid="chat-join-button"]'); if (!b) return 'no-join'; setTimeout(() => b.click(), 80); return 'clicked'; }, title);
     if (r1 === 'already') return 'already in a call';
     if (r1 === 'no-chat') throw new Error('No meeting chat named "' + title + '"');
     if (r1 === 'no-join') throw new Error('No Join button yet (meeting not started?)');
