@@ -28,12 +28,21 @@ Run these from **Windows** (PowerShell), not WSL: `node_modules` holds the platf
 Optional: `npm run dist` builds a portable `.exe` (not tested). A desktop shortcut can point to `node_modules\electron\dist\electron.exe` with argument `.` and "Start in" set to the project folder.
 
 ## Setup (once)
-1. In the app: **Virtual mic output** = `CABLE Input (VB-Audio Virtual Cable)`, tick **Send to mic**, **Headphones** = your real output.
-2. To send your voice too: **Real mic** = your microphone, tick **Mix my real mic**.
-3. In Discord (Voice & Video) or Teams (Devices): **Input / Microphone** = `CABLE Output (VB-Audio Virtual Cable)`; **Output / Speaker** = your headphones (never the cable).
-4. Turn off noise suppression, echo cancellation and automatic input sensitivity for that input.
+The sound must go **into the cable**, not to your headset. Pick the plain `CABLE Input` entry (not "Default - …" / "Communications - …").
+
+| Where | Setting | Value |
+| --- | --- | --- |
+| App | Virtual mic output | `CABLE Input (VB-Audio Virtual Cable)` |
+| App | Send to mic | ticked |
+| App | Hear in headphones + Headphones | ticked, your real headset/speakers (so you hear the sounds) |
+| App | Mix my real mic + Real mic | ticked, your real microphone (so others hear your voice too) |
+| Discord (Voice & Video) / Teams (Devices) | Input / Microphone | `CABLE Output (VB-Audio Virtual Cable)` |
+| Discord / Teams | Output / Speaker | your real headset (never the cable) |
+
+Also turn off noise suppression, echo cancellation and automatic input sensitivity in Discord/Teams for that input. If a sample is too quiet to trigger voice detection, raise its **boost** slider.
 
 The two cable names look reversed but are correct: the app sends into *CABLE Input*, call apps read *CABLE Output*.
+The app's routing diagram confirms it: the yellow line should read `Discord/Teams input must be: CABLE Output (…)`. If it says "Output is not the cable", the virtual mic output is still on a real device.
 
 ## Test the mic path
 1. `Win+R` → `mmsys.cpl` → **Recording** tab → *CABLE Output* → **Listen** → tick *Listen to this device* → pick your headphones.
@@ -42,6 +51,7 @@ The two cable names look reversed but are correct: the app sends into *CABLE Inp
 ## Troubleshooting
 - "No virtual cable found": VB-Cable not installed, or no reboot since the install.
 - `Electron failed to install correctly`: delete `node_modules`, run `npm install` again from Windows (check `npm config get ignore-scripts` is `false`).
+- Nobody hears the sounds: Virtual mic output is not `CABLE Input`, Send to mic is unticked, or Discord/Teams input is not `CABLE Output`.
 - Sounds fail to load / empty grid: delete `%APPDATA%\soundboard-mic\config.json` (a saved device that no longer exists can break startup).
 - URL import fails: click **Update yt-dlp**; YouTube changes break old versions.
 - Config and downloaded sounds live in `%APPDATA%\soundboard-mic`.
