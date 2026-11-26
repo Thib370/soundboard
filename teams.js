@@ -76,22 +76,29 @@ class Teams {
   async connectBridge(cfg) {
     const gen = this.gen; const alive = () => gen === this.gen;
     if (/[&|<>^%"`;$]/.test(cfg.bridgeArgs || '')) { this.set('disconnected', 'Invalid plugin arguments'); return false; }
-    const port = cfg.bridgePort || 8931, brave = ['C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe', process.env.LOCALAPPDATA + '\\BraveSoftware\\Brave-Browser\\Application\\brave.exe'].find(p => fs.existsSync(p));
+    if (process.platform === 'win32') { // leftovers from a killed run would hold the port and the extension
+      await new Promise(r => { const k = spawn('powershell.exe', ['-NoProfile', '-Command', "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'playwright.mcp' -and $_.CommandLine -match '--extension' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"], { stdio: 'ignore', windowsHide: true }); k.on('exit', r); k.on('error', r); setTimeout(r, 8000); });
+      if (!alive()) return false;
+    }
+    const freePort = () => new Promise(r => { const s = require('net').createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); s.on('error', () => r(8931)); });
+    const port = cfg.bridgePort || await freePort(), brave = ['C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe', process.env.LOCALAPPDATA + '\\BraveSoftware\\Brave-Browser\\Application\\brave.exe'].find(p => fs.existsSync(p));
     const args = ['-y', '@playwright/mcp@latest', '--port', String(port), ...(cfg.bridgeArgs ? cfg.bridgeArgs.split(' ') : ['--extension']), ...(brave && !cfg.bridgeArgs ? ['--executable-path', process.platform === 'win32' ? '"' + brave + '"' : brave] : [])];
     this.set('connected', 'Starting the Playwright plugin (approve the connection in the browser if asked)…');
     this.proc = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', args, { shell: process.platform === 'win32', windowsHide: true, env: { ...process.env, ...(cfg.bridgeToken ? { PLAYWRIGHT_MCP_EXTENSION_TOKEN: cfg.bridgeToken } : {}) }, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
-    this.out = ''; const grab = d => { this.out = (this.out + d).slice(-600); }; this.proc.stdout.on('data', grab); this.proc.stderr.on('data', grab);
-    const me = this.proc; this.proc.on('exit', () => { if (this.proc === me && this.mcp) { this.mcp = null; clearInterval(this.timer); this.set('disconnected', 'Plugin process stopped: ' + (String(this.out).trim().split('\n').pop() || 'no output').slice(0, 160)); } });
+    this.out = ''; const grab = d => { this.out = (this.out + d).slice(-3000); }; this.proc.stdout.on('data', grab); this.proc.stderr.on('data', grab);
+    const me = this.proc; this.proc.on('exit', () => { if (this.proc === me && this.mcp) { this.mcp = null; clearInterval(this.timer); this.set('disconnected', 'Plugin process stopped: ' + ((String(this.out).split('\n').map(s => s.trim()).filter(Boolean).find(l => /error|EADDR|not found|ENOENT|denied/i.test(l))) || String(this.out).trim().split('\n').pop() || 'no output').slice(0, 160)); } });
     this.mcp = new Mcp(`http://127.0.0.1:${port}/mcp`);
-    for (let i = 0; i < 40; i++) { if (!alive()) return false; try { await this.mcp.init(); if (!alive()) return false; this.tabOk = false; this.timer = setInterval(() => this.tick().catch(() => {}), 1000); return true; } catch { await new Promise(r => setTimeout(r, 1500)); if (!alive() || !this.proc || !this.mcp) break; } }
-    const why = String(this.out || '').trim().split('\n').pop() || ''; await this.disconnect(); this.set('disconnected', 'Could not start the Playwright plugin' + (why ? ': ' + why.slice(0, 160) : ' (needs Node/npx and the extension in the browser)')); return false;
+    for (let i = 0; i < 40; i++) { if (!alive()) return false; try { await this.mcp.init(); if (!alive()) return false; this.tabOk = false; this.openedTeams = false; this.timer = setInterval(() => this.tick().catch(() => {}), 1000); return true; } catch { await new Promise(r => setTimeout(r, 1500)); if (!alive() || !this.proc || !this.mcp) break; } }
+    const lines = String(this.out || '').split('\n').map(s => s.trim()).filter(Boolean); const why = lines.find(l => /error|EADDR|not found|ENOENT|denied/i.test(l)) || lines.pop() || ''; await this.disconnect(); this.set('disconnected', 'Could not start the Playwright plugin' + (why ? ': ' + why.slice(0, 160) : ' (needs Node/npx and the extension in the browser)')); return false;
   }
   async bridgeLines() {
     if (!this.tabOk) {
       const list = await this.mcp.call('browser_tabs', { action: 'list' }); const re = new RegExp(this.cfg.urlMatch || 'teams\\.(microsoft|cloud\\.microsoft)|mcas\\.ms', 'i');
       const hit = list.split('\n').map(l => l.match(/^- (\d+):.*\(([^)\s]+)\)/)).find(m => m && re.test(m[2]));
       if (!this.mcp) return null;
-      if (!hit) { this.set('connected', 'No Teams tab found in the plugin browser'); return null; }
+      if (!hit) {
+        if (!this.openedTeams) { this.openedTeams = true; this.set('connected', 'No Teams tab: opening Teams in Brave…'); try { await this.mcp.call('browser_tabs', { action: 'new', url: 'https://teams.microsoft.com/' }); } catch {} return null; }
+        this.set('connected', 'No Teams tab found in the plugin browser (sign in to Teams there)'); return null; }
       await this.mcp.call('browser_tabs', { action: 'select', index: +hit[1] }); this.tabOk = true;
     }
     try { return parseResult(await this.mcp.call('browser_evaluate', { function: `() => (${READ.toString()})()` })); } catch (e) { this.tabOk = false; return null; }
