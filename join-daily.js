@@ -8,7 +8,7 @@
 // Needs: app running with ▶ Run Teams connected, "Send to mic" ON, Teams mic = CABLE Output.
 const fs = require('fs'), { execFileSync } = require('child_process'), WS = require('ws');
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i < 0 ? d : (process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : true); };
-const YES = !!arg('yes'), TITLE = String(arg('title', 'Daily meeting')), SONG = arg('song', ''), DELAY = +arg('delay', 5), LIST = !!arg('list');
+const YES = !!arg('yes'), TITLE = String(arg('title', 'Daily meeting')), SONG = arg('song', ''), DELAY = +arg('delay', 5), LIST = !!arg('list'), LEAVE = +arg('leave-after', 0);
 const log = (...a) => console.log(new Date().toLocaleTimeString(), ...a), die = m => { console.error('ERROR:', m); process.exit(1); };
 const appdata = execFileSync('cmd.exe', ['/c', 'echo %APPDATA%'], { cwd: '/mnt/c' }).toString().trim().replace(/\\/g, '/').replace(/^([A-Za-z]):/, (_, d) => '/mnt/' + d.toLowerCase());
 let token; try { const j = JSON.parse(fs.readFileSync(appdata + '/soundboard-mic/bridge.json', 'utf8')); token = (j.bridge || j).token; } catch { die('Soundboard Mic config not found: start the Windows app once'); }
@@ -30,7 +30,7 @@ async function open() {
   if (!/^(connected|captions)$/.test(cur.teams.state)) die('The app is not connected to Teams: click ▶ Run Teams in the app (approve the Brave extension popup).');
   if (cur.call.inCall) die('Already in a call.');
   if (!YES) { log('DRY RUN OK: nothing sent. Add --yes to request joining "' + TITLE + '" and playing "' + m[0].name + '" (the app will ask you to approve).'); return process.exit(0); }
-  ws.send(JSON.stringify({ t: 'join', title: TITLE, id: m[0].id, delay: DELAY })); log('Request sent. Approve the dialog on Windows…');
+  ws.send(JSON.stringify({ t: 'join', title: TITLE, id: m[0].id, delay: DELAY, leaveAfter: LEAVE })); log('Request sent. Approve the dialog on Windows…');
   for (let i = 0; i < 150; i++) { await new Promise(r => setTimeout(r, 1000)); if (cur.call.inCall) { log('In the call. The sample plays in', DELAY, 's.'); await new Promise(r => setTimeout(r, (DELAY + 3) * 1000)); return process.exit(0); } }
   die('Not in the call after 150 s (cancelled, failed or waiting in the lobby: see the app log)');
 })().catch(e => die(e.message));

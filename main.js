@@ -63,6 +63,7 @@ async function joinAndPlay(c) {
     send('teams-log', { t: Date.now(), msg: 'Joining ' + c.title + '…' });
     const res = await teams.join(c.title); send('teams-log', { t: Date.now(), msg: res });
     setTimeout(() => send('play', c.id), c.delay * 1000);
+    if (c.leaveAfter) setTimeout(async () => { try { send('teams-log', { t: Date.now(), msg: await teams.leave() }); } catch (e) { send('teams-log', { t: Date.now(), msg: 'Could not leave: ' + e.message + ' (leave by hand)' }); } }, (c.delay + c.leaveAfter) * 1000);
   } catch (e) { send('teams-log', { t: Date.now(), msg: 'Join failed: ' + e.message.slice(0, 120) }); }
   finally { joinBusy = false; }
 }

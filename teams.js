@@ -87,7 +87,7 @@ class Teams {
     this.proc = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', args, { shell: process.platform === 'win32', windowsHide: true, env: { ...process.env, ...(cfg.bridgeToken ? { PLAYWRIGHT_MCP_EXTENSION_TOKEN: cfg.bridgeToken } : {}) }, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
     this.out = ''; const grab = d => { this.out = (this.out + d).slice(-3000); }; this.proc.stdout.on('data', grab); this.proc.stderr.on('data', grab);
     const me = this.proc; this.proc.on('exit', () => { if (this.proc === me && this.mcp) { this.mcp = null; clearInterval(this.timer); this.set('disconnected', 'Plugin process stopped: ' + ((String(this.out).split('\n').map(s => s.trim()).filter(Boolean).find(l => /error|EADDR|not found|ENOENT|denied/i.test(l))) || String(this.out).trim().split('\n').pop() || 'no output').slice(0, 160)); } });
-    this.mcp = new Mcp(`http://127.0.0.1:${port}/mcp`);
+    this.mcp = new Mcp(`http://localhost:${port}/mcp`);
     for (let i = 0; i < 40; i++) { if (!alive()) return false; try { await this.mcp.init(); if (!alive()) return false; this.tabOk = false; this.openedTeams = false; this.timer = setInterval(() => this.tick().catch(() => {}), 1000); return true; } catch { await new Promise(r => setTimeout(r, 1500)); if (!alive() || !this.proc || !this.mcp) break; } }
     const lines = String(this.out || '').split('\n').map(s => s.trim()).filter(Boolean); const why = lines.find(l => /error|EADDR|not found|ENOENT|denied/i.test(l)) || lines.pop() || ''; await this.disconnect(); this.set('disconnected', 'Could not start the Playwright plugin' + (why ? ': ' + why.slice(0, 160) : ' (needs Node/npx and the extension in the browser)')); return false;
   }
@@ -136,6 +136,12 @@ class Teams {
     if (r2 === 'no-prejoin') throw new Error('Pre-join screen not found');
     for (let i = 0; i < 60; i++) { if (await ev(() => !!document.querySelector('#microphone-button'))) return 'joined' + (r2 !== 'ok' ? ' (' + r2 + ')' : ''); await new Promise(r => setTimeout(r, 1000)); }
     throw new Error('Did not enter the call (lobby?)');
+  }
+  async leave() {
+    if (!this.mcp) throw new Error('plugin not connected');
+    const r = parseResult(await this.mcp.call('browser_evaluate', { function: `() => { const b = document.querySelector('#hangup-button, [data-tid="hangup-button"], button[aria-label*="Raccrocher"], button[aria-label*="Leave"], button[aria-label*="Quitter"]'); if (!b) return 'no-button'; b.click(); return 'ok'; }` }));
+    if (r !== 'ok') throw new Error('leave button not found');
+    return 'left the call';
   }
   async brief() {
     if (!this.browser && !this.mcp) throw new Error('Not connected to Teams');

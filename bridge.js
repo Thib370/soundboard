@@ -36,7 +36,7 @@ function startBridge({ getCfg, saveCfg, validId, onCommand, ports = [8790, 8791,
       cmds = cmds.filter(x => Date.now() - x < 10000); cmds.push(Date.now()); if (cmds.length > 20) return ws.close(4429);
       if (m.t === 'ping') return send(ws, { t: 'pong', ts: Date.now() });
       if (m.t === 'brief') { onCommand({ t: 'brief' }); return send(ws, { t: 'ack', id: 'brief', ok: true }); }
-      if (m.t === 'join') { if (typeof m.title !== 'string' || !m.title || m.title.length > 80 || typeof m.id !== 'string' || !validId(m.id)) return send(ws, { t: 'error', code: 'bad-request' }); onCommand({ t: 'join', title: m.title, id: m.id, delay: Math.min(60, Math.max(0, +m.delay || 5)) }); return send(ws, { t: 'ack', id: 'join', ok: true }); }
+      if (m.t === 'join') { if (typeof m.title !== 'string' || !m.title || m.title.length > 80 || typeof m.id !== 'string' || !validId(m.id)) return send(ws, { t: 'error', code: 'bad-request' }); onCommand({ t: 'join', title: m.title, id: m.id, delay: Math.min(60, Math.max(0, +m.delay || 5)), leaveAfter: Math.min(120, Math.max(0, +m.leaveAfter || 0)) }); return send(ws, { t: 'ack', id: 'join', ok: true }); }
       if (m.t === 'sync') return send(ws, snapshot());
       if (m.t === 'stop') { onCommand({ t: 'stop' }); return send(ws, { t: 'ack', id: 'stop', ok: true }); }
       if (m.t === 'play') { if (typeof m.id !== 'string' || !validId(m.id)) return send(ws, { t: 'error', code: 'unknown-id' }); onCommand({ t: 'play', id: m.id }); return send(ws, { t: 'ack', id: 'play', ok: true }); }
