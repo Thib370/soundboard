@@ -10,7 +10,7 @@ Windows soundboard (Electron) that plays sounds into a **virtual microphone**, s
 - **● Record**: record your own sample from the selected Real mic (max 60 s, optional name); it is saved as a new sound.
 - Per-sound **boost** slider (×0.2 to ×4, default ×1.2, saved) for quiet samples that don't trigger voice detection; a limiter on the mic path prevents clipping.
 - Outputs: **Send to mic** (virtual cable), **Hear in headphones**, volume.
-- **Mix my real mic**: sends your voice and the sounds together on one device.
+- **Mix my real mic**: on by default and remembered. Your voice and the sounds go together to the virtual mic only; your voice is never played back in your headphones.
 - Live routing diagram: what plays, where it goes, level meters, real device names, and the input name Discord/Teams must select.
 - Global hotkeys: `Ctrl+Alt+1..9` play/stop the first 9 sounds, `Ctrl+Alt+0` stops all.
 
