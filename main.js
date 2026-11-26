@@ -30,6 +30,7 @@ app.whenReady().then(() => {
     const f = fs.readdirSync(soundsDir()).find(x => x.startsWith(id + '.')); if (!f) throw new Error('Download failed');
     return { path: path.join(soundsDir(), f), name: title };
   });
+  ipcMain.handle('save-recording', (_, buf) => { fs.mkdirSync(soundsDir(), { recursive: true }); const p = path.join(soundsDir(), 'rec-' + Date.now().toString(36) + '.webm'); fs.writeFileSync(p, Buffer.from(buf)); return p; });
   ipcMain.handle('update-ytdlp', async () => { await ensureYtdlp(true); return true; });
   registerHotkeys(load().sounds || []);
 });

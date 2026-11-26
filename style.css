@@ -16,3 +16,4 @@ button{cursor:pointer}button:hover{background:#34343c}
 .node span.need{color:#fbbf24;white-space:normal}
 #flow .node{min-width:0}
 .snd .gain{font-size:.75rem;color:#aaa;display:flex;gap:.3rem;align-items:center}.snd .gain input{flex:1;min-width:0;padding:0}.snd .gain em{font-style:normal;min-width:2.2em}
+#rec.recording{background:#b91c1c;border-color:#ef4444}

@@ -43,6 +43,26 @@ $('stop').onclick = () => eng.stopAll();
 $('add').onclick = async () => { for (const p of await window.api.pick()) await addSound(p.split(/[\\/]/).pop().replace(/\.[^.]+$/, ''), p); };
 $('imp').onclick = async () => { const u = $('url').value.trim(); if (!u) return; say('Downloading…'); try { const r = await window.api.importUrl(u); await addSound(r.name, r.path); $('url').value = ''; say('Added: ' + r.name); } catch (e) { say('Import failed: ' + e.message); } };
 $('upd').onclick = async () => { say('Updating yt-dlp…'); try { await window.api.updateYtdlp(); say('yt-dlp updated'); } catch (e) { say(e.message); } };
+// Record own sample from the selected real mic (max 60 s), saved as a new sound.
+let rec = null, recTimer = null, recMax = null;
+async function stopRec() { if (rec && rec.state !== 'inactive') rec.stop(); }
+$('rec').onclick = async () => {
+  if (rec && rec.state === 'recording') return stopRec();
+  try {
+    const id = $('micIn').value, stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: id ? { exact: id } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    const chunks = []; rec = new MediaRecorder(stream); const t0 = Date.now();
+    rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+    rec.onstop = async () => {
+      clearInterval(recTimer); clearTimeout(recMax); stream.getTracks().forEach(t => t.stop()); $('rec').textContent = '● Record'; $('rec').classList.remove('recording');
+      try { const buf = await new Blob(chunks, { type: 'audio/webm' }).arrayBuffer(); if (!buf.byteLength) throw new Error('empty recording');
+        const p = await window.api.saveRecording(buf); const n = $('recName').value.trim() || 'Recording ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        await addSound(n, p); $('recName').value = ''; say('Saved: ' + n); } catch (e) { say('Recording failed: ' + e.message); }
+    };
+    rec.start(); $('rec').classList.add('recording');
+    const tick = () => $('rec').textContent = '■ Stop (' + Math.floor((Date.now() - t0) / 1000) + 's)'; tick(); recTimer = setInterval(tick, 500);
+    recMax = setTimeout(stopRec, 60000);
+  } catch (e) { say('Cannot record: ' + e.message); }
+};
 window.api.onPlay(id => eng.play(id)); window.api.onStop(() => eng.stopAll());
 init();
 
