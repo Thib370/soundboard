@@ -56,7 +56,11 @@ The app's routing diagram confirms it: the yellow line should read `Discord/Team
 - Nobody hears the sounds: Virtual mic output is not `CABLE Input`, Send to mic is unticked, or Discord/Teams input is not `CABLE Output`.
 - Sounds fail to load / empty grid: delete `%APPDATA%\soundboard-mic\config.json` (a saved device that no longer exists can break startup).
 - URL import fails: click **Update yt-dlp**; YouTube changes break old versions.
-- Config and downloaded sounds live in `%APPDATA%\soundboard-mic`.
+- Config and sounds live in `%APPDATA%\soundboard-mic` (open with `Win+R`).
+  - `config.json`: sound list, names, boost values, settings.
+  - `sounds\`: recordings (`rec-<id>.webm`) and URL downloads. The sound's name is only in `config.json`, not the filename.
+  - Files added with **+ Add files** are not copied, only their path is kept: moving/deleting the original breaks that sound.
+  - **remove** only removes the sound from the grid; its file stays in `sounds\` until you delete it by hand.
 
 ## Limits
 - Windows only for real routing; WSL/Linux has no equivalent virtual device here.
