@@ -52,7 +52,7 @@ async function init() {
   try { await eng.setMicSink($('micOut').value); await eng.setMonSink($('monOut').value); } catch (x) { say('Output device unavailable: ' + x.message); }
   for (const s of cfg.sounds) await loadSound(s);
   render(); tInit(); bridgeUi().catch(() => {}); pushState();
-  if (T().autoStart !== false) safeRun('cdp');
+  if (T().autoStart !== false) safeRun('bridge');
   // Real mic mix is ON by default (sent to the virtual mic only, never to the headphones); saved choice wins.
   $('mix').checked = st.mix !== false; 
   if ($('mix').checked || voiceHeard()) try { await mic(); } catch (x) { $('mix').checked = false; $('monMode').value = soundsHeard() ? 'sounds' : 'off'; eng.monitor = soundsHeard(); say('Mic off: ' + x.message); }
@@ -111,7 +111,7 @@ $('tConn').onclick = async () => { runMode = 'cdp'; if (tOn) { await window.api.
 $('tLaunch').onclick = async () => { try { await window.api.teamsLaunch(); say('Chrome started. Sign in to Teams, join a call, then click Connect.'); } catch (e) { say(e.message); } };
 // One click: connect (launching Chrome first if the debug port is closed), then listen.
 let running = false;
-const labels = () => { $('tRun').textContent = running && runMode === 'cdp' ? '■ Stop Teams' : '▶ Run Teams'; $('tPlug').textContent = running && runMode === 'bridge' ? '■ Disconnect plugin' : '🔌 Plugin'; $('tRun').disabled = running && runMode === 'bridge'; $('tPlug').disabled = running && runMode === 'cdp'; };
+const labels = () => { $('tRun').textContent = running ? '■ Stop Teams' : '▶ Run Teams'; };
 async function runTeams(mode = 'cdp') {
   if (running) { running = false; $('tListen').checked = false; tSave(); await window.api.teamsDisconnect(); tOn = false; labels(); $('tConn').textContent = 'Connect'; return; }
   runMode = mode; running = true; labels(); $('tListen').checked = true; tSave();
@@ -124,7 +124,7 @@ async function runTeams(mode = 'cdp') {
   tOn = true; $('tConn').textContent = 'Disconnect'; window.api.teamsBrief();
 }
 const safeRun = m => runTeams(m).catch(e => { running = false; labels(); const t = String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''); $('tStatus').textContent = $('tStatus2').textContent = t; say(t); });
-$('tRun').onclick = () => safeRun('cdp'); $('tPlug').onclick = () => safeRun('bridge');
+$('tRun').onclick = () => safeRun('bridge'); $('tPlug').hidden = true; // Brave Playwright plugin is the default connection
 window.api.onTeamsStatus(s => { teamsState = { state: s.state, detail: s.detail || '' }; pushState(); const st = $('tState'); st.textContent = '● ' + ({ disconnected: 'Not connected', connected: 'Connected', captions: 'Connected, reading captions' }[s.state] || s.state); st.className = 'big ' + s.state; $('tStatus').textContent = $('tStatus2').textContent = s.detail || ''; if ((s.detail === 'Chrome closed' || s.detail === 'Plugin process stopped') && running) { running = false; labels(); }
   if (s.state === 'disconnected') { callState = { inCall: false }; callCard(); }
   if (s.state === 'disconnected' && !running) { tOn = false; $('tConn').textContent = 'Connect'; } });
