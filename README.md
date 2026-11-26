@@ -14,6 +14,10 @@ Windows soundboard (Electron) that plays sounds into a **virtual microphone**, s
 - Live routing diagram: what plays, where it goes, level meters, real device names, and the input name Discord/Teams must select.
 - Global hotkeys: `Ctrl+Alt+1..9` play/stop the first 9 sounds, `Ctrl+Alt+0` stops all.
 
+## Teams mention approval (local, free)
+Collapsible **Teams** panel. The app attaches to a Chrome you start with its button (debug port 9222, own profile in `%APPDATA%\soundboard-mic\chrome-teams`), reads Teams **live captions** through `playwright-core`, and when an alias (Thib, Thibault, ...) is spoken by someone else it shows an always-on-top popup: **Approve** plays the first sample of the chosen *Reply folder*, other samples can be clicked, **Cancel** dismisses. Keys: `Ctrl+Alt+Enter` approve, `Ctrl+Alt+Backspace` cancel. Nothing is ever sent without approval. Cooldown and popup timeout are configurable; "Ignore my own name" uses your Teams display name. No model, no API, nothing leaves the PC.
+Steps: Launch Chrome for Teams -> sign in, join a call, turn on live captions -> Connect -> tick Listen. Caption selectors may need updating when Teams changes its page. Voice approve/cancel (local) is not built yet.
+
 ## Requirements
 - Windows 10/11
 - [Node.js](https://nodejs.org) 22 or newer (tested with 26)

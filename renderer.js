@@ -51,7 +51,7 @@ async function init() {
   eng.sendToMic = $('send').checked; eng.monitor = $('mon').checked; eng.setVolume(+$('vol').value);
   await eng.setMicSink($('micOut').value); await eng.setMonSink($('monOut').value);
   for (const s of cfg.sounds) await loadSound(s);
-  render();
+  render(); tInit();
   // Real mic mix is ON by default (sent to the virtual mic only, never to the headphones); saved choice wins.
   $('mix').checked = st.mix !== false; $('hear').checked = !!st.hear;
   if ($('mix').checked || $('hear').checked) try { await mic(); } catch (x) { $('mix').checked = $('hear').checked = false; say('Mic off: ' + x.message); }
@@ -95,6 +95,20 @@ $('fAdd').onclick = () => { const n = fname(); if (!n) return say('Type a folder
 $('fRen').onclick = () => { const n = fname(), o = cur(); if (!n || cfg.folders.includes(n)) return say('Type a new, unused folder name'); cfg.folders[cfg.folders.indexOf(o)] = n; cfg.sounds.forEach(s => { if (s.folder === o) s.folder = n; }); cfg.settings.folder = n; $('folderName').value = ''; save(); render(); };
 $('fDel').onclick = () => { const o = cur(); cfg.folders = cfg.folders.filter(f => f !== o); cfg.sounds.forEach(s => { if (s.folder === o) s.folder = ''; }); cfg.settings.folder = ''; save(); render(); say('Folder deleted; its sounds moved to Unsorted'); };
 $('view').onclick = () => { cfg.settings.list = !cfg.settings.list; save(); render(); };
+// ---- Teams panel ----
+const T = () => (cfg.teams ||= { aliases: 'Thib, Thibault, Thibu', ignoreSelf: true, cooldown: 30, timeout: 15, replyFolder: '', listen: false, self: '' });
+const tcfg = () => ({ ...T(), endpoint: 'http://127.0.0.1:9222' });
+const tSave = () => { const t = T(); t.aliases = $('tAlias').value; t.self = $('tMe').value; t.ignoreSelf = $('tSelf').checked; t.listen = $('tListen').checked; t.replyFolder = $('tFolder').value; t.timeout = +$('tTimeout').value || 15; t.cooldown = +$('tCool').value || 30; save(); window.api.teamsConfig(tcfg()); };
+function tInit() {
+  const t = T(); $('tAlias').value = t.aliases; $('tMe').value = t.self || ''; $('tSelf').checked = t.ignoreSelf !== false; $('tListen').checked = !!t.listen; $('tTimeout').value = t.timeout; $('tCool').value = t.cooldown;
+  $('tFolder').innerHTML = '<option value="">Unsorted</option>' + cfg.folders.map(f => `<option>${f.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</option>`).join(''); $('tFolder').value = t.replyFolder || '';
+  ['tAlias', 'tMe', 'tSelf', 'tListen', 'tFolder', 'tTimeout', 'tCool'].forEach(id => $(id).onchange = tSave);
+}
+let tOn = false;
+$('tConn').onclick = async () => { if (tOn) { await window.api.teamsDisconnect(); tOn = false; $('tConn').textContent = 'Connect'; return; } tSave(); tOn = await window.api.teamsConnect(tcfg()); $('tConn').textContent = tOn ? 'Disconnect' : 'Connect'; };
+$('tLaunch').onclick = async () => { try { await window.api.teamsLaunch(); say('Chrome started. Sign in to Teams, join a call, then click Connect.'); } catch (e) { say(e.message); } };
+window.api.onTeamsStatus(s => { const b = $('tBadge'); b.textContent = '● ' + ({ disconnected: 'off', connected: 'connected', captions: 'listening' }[s.state] || s.state); b.className = 'badge ' + s.state; $('tStatus').textContent = s.detail || ''; if (s.state === 'disconnected') { tOn = false; $('tConn').textContent = 'Connect'; } });
+window.api.onTeamsLog(l => { const d = document.createElement('div'); d.textContent = new Date(l.t).toLocaleTimeString() + ' ' + l.who + ': ' + l.msg; $('tLog').prepend(d); while ($('tLog').children.length > 10) $('tLog').lastChild.remove(); });
 window.api.onPlay(id => eng.play(id)); window.api.onStop(() => eng.stopAll());
 init();
 

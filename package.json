@@ -21,5 +21,8 @@
     "win": {
       "target": "portable"
     }
+  },
+  "dependencies": {
+    "playwright-core": "^1.65.1"
   }
 }
