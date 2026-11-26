@@ -53,8 +53,8 @@ async function init() {
   for (const s of cfg.sounds) await loadSound(s);
   render();
   // Real mic mix is ON by default (sent to the virtual mic only, never to the headphones); saved choice wins.
-  $('mix').checked = st.mix !== false;
-  if ($('mix').checked) try { await eng.setMicMix(true, $('micIn').value); } catch (x) { $('mix').checked = false; say('Mic mix off: ' + x.message); }
+  $('mix').checked = st.mix !== false; $('hear').checked = !!st.hear;
+  if ($('mix').checked || $('hear').checked) try { await mic(); } catch (x) { $('mix').checked = $('hear').checked = false; say('Mic off: ' + x.message); }
 }
 const upd = (k, v) => { cfg.settings[k] = v; save(); };
 $('send').onchange = e => { eng.sendToMic = e.target.checked; upd('send', e.target.checked); };
@@ -62,8 +62,10 @@ $('mon').onchange = e => { eng.monitor = e.target.checked; upd('mon', e.target.c
 $('vol').oninput = e => { eng.setVolume(+e.target.value); upd('vol', +e.target.value); };
 $('micOut').onchange = e => { eng.setMicSink(e.target.value); upd('micOut', e.target.value); };
 $('monOut').onchange = e => { eng.setMonSink(e.target.value); upd('monOut', e.target.value); };
-$('micIn').onchange = async e => { upd('micIn', e.target.value); if ($('mix').checked) await eng.setMicMix(true, e.target.value); };
-$('mix').onchange = async e => { try { await eng.setMicMix(e.target.checked, $('micIn').value); upd('mix', e.target.checked); } catch (x) { say(x.message); e.target.checked = false; } };
+$('micIn').onchange = async e => { upd('micIn', e.target.value); if ($('mix').checked || $('hear').checked) await mic(); };
+const mic = () => eng.setMic($('mix').checked, $('hear').checked, $('micIn').value);
+$('mix').onchange = async e => { try { await mic(); upd('mix', e.target.checked); } catch (x) { say(x.message); e.target.checked = false; } };
+$('hear').onchange = async e => { try { await mic(); upd('hear', e.target.checked); } catch (x) { say(x.message); e.target.checked = false; } };
 $('stop').onclick = () => eng.stopAll();
 $('add').onclick = async () => { for (const p of await window.api.pick()) await addSound(p.split(/[\\/]/).pop().replace(/\.[^.]+$/, ''), p); };
 $('imp').onclick = async () => { const u = $('url').value.trim(); if (!u) return; say('Downloading…'); try { const r = await window.api.importUrl(u); await addSound(r.name, r.path); $('url').value = ''; say('Added: ' + r.name); } catch (e) { say('Import failed: ' + e.message); } };
@@ -102,7 +104,7 @@ const optName = sel => { if (sel.value) return sel.selectedOptions[0]?.textConte
 // Name Discord/Teams must select as input: the cable's recording side ("CABLE Input" -> "CABLE Output").
 const discordIn = name => /input/i.test(name) && /cable|virtual/i.test(name) ? name.replace(/Input/i, 'Output') : null;
 function frame() {
-  const ids = [...eng.byKey.keys()], mixOn = !!eng.micStream, lv = { m: eng.level(eng.anMic), h: eng.level(eng.anMon), i: mixOn ? eng.level(eng.anIn) : 0 };
+  const ids = [...eng.byKey.keys()], mixOn = !!eng.mixOn, lv = { m: eng.level(eng.anMic), h: eng.level(eng.anMon), i: mixOn ? eng.level(eng.anIn) : 0 };
   $('playing').textContent = ids.length ? ids.map(nameOf).join(', ') : 'idle';
   $('inName').textContent = (mixOn ? 'in: ' : 'off · ') + optName($('micIn'));
   $('volTxt').textContent = Math.round($('vol').value * 100) + '%';

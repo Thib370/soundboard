@@ -40,11 +40,17 @@ export class Engine {
   setGain(key, v) { this.gains.set(key, v); (this.byKey.get(key) || []).forEach(s => s._g && (s._g.gain.value = v)); }
   stop(key) { (this.byKey.get(key) || []).forEach(s => { try { s.stop(); } catch {} }); }
   stopAll() { [...this.active].forEach(s => { try { s.stop(); } catch {} }); }
-  async setMicMix(on, deviceId) {
-    if (this.micSrc) { this.micSrc.disconnect(); this.micSrc = null; }
-    if (this.micStream) { this.micStream.getTracks().forEach(t => t.stop()); this.micStream = null; }
-    if (!on) return;
-    this.micStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: deviceId ? { exact: deviceId } : undefined, echoCancellation: false, noiseSuppression: false } });
-    this.micSrc = this.micCtx.createMediaStreamSource(this.micStream); this.micSrc.connect(this.micBus); this.micSrc.connect(this.anIn);
+  // Real mic: `mix` sends it to the virtual mic; `hear` plays it in the headphones (sidetone). Independent toggles, one shared stream.
+  async setMic(mix, hear, deviceId) {
+    this.micSrc?.disconnect(); this.monSrc?.disconnect(); this.micSrc = this.monSrc = null;
+    this.mixOn = mix; this.hearOn = hear;
+    if (!mix && !hear) { this.micStream?.getTracks().forEach(t => t.stop()); this.micStream = null; return; }
+    if (this.micStreamId !== (deviceId || '') || !this.micStream?.active) {
+      this.micStream?.getTracks().forEach(t => t.stop());
+      this.micStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: deviceId ? { exact: deviceId } : undefined, echoCancellation: false, noiseSuppression: false } });
+      this.micStreamId = deviceId || '';
+    }
+    if (mix) { this.micSrc = this.micCtx.createMediaStreamSource(this.micStream); this.micSrc.connect(this.micBus); this.micSrc.connect(this.anIn); }
+    if (hear) { this.monSrc = this.monCtx.createMediaStreamSource(this.micStream); this.monSrc.connect(this.monCtx.destination); }
   }
 }
