@@ -2,7 +2,7 @@
 // listChats / sendMessage / join / leave / setMute. Irreversible actions (chat send, join, leave) always wait for a spoken "yes".
 const { parse, parseLLM, yesNo } = require('./voice.js');
 const short = n => { const p = String(n).split(' | ').map(x => x.trim()).filter(Boolean); return p.length > 1 ? p[1] : p[0] || ''; };
-function createRouter({ getConnector, speak, play, stop, sounds, status, model, listen, llmUrl }) {
+function createRouter({ getConnector, speak, play, stop, sounds, status, model, listen, llmUrl, brief }) {
   let pending = null, retries = 0;
   // 60 s to answer, counted after the readback
   const ask = (label, run) => { retries = 0; pending = { run, label, exp: Date.now() + 120000 }; status({ state: 'confirm', msg: label }); return speak(label + ' Say yes or no.').then(() => { if (pending) { pending.exp = Date.now() + 60000; listen && listen(); } }); };
@@ -17,6 +17,7 @@ function createRouter({ getConnector, speak, play, stop, sounds, status, model, 
         const h = hits[0]; return ask('Send to ' + short(h.name) + ': ' + it.text + '?', async () => { await c.sendMessage(h, it.text, true, short(h.name)); return say('Sent.'); });
       }
       case 'play': { const s = sounds().find(x => x.name.toLowerCase().includes(String(it.name).toLowerCase())); return s ? (play(s.id), status({ state: 'idle', msg: 'Playing ' + s.name })) : say('No sample named ' + it.name + '.'); }
+      case 'brief': brief && brief(); return say('Checking Teams.');
       case 'stop': stop(); return status({ state: 'idle', msg: 'Stopped' });
       case 'mute': case 'unmute': return say(await c.setMute(it.action === 'mute'));
       case 'leave': return ask('Leave the call?', async () => say(await c.leave()));

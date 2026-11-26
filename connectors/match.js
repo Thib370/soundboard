@@ -11,4 +11,6 @@ function matchChats(names, query) {
   const hits = names.map((n, i) => ({ i, w: words(n) })).filter(({ w }) => q.every(x => w.some(y => wordHit(x, y))));
   const exact = hits.filter(h => norm(names[h.i]).trim() === norm(query).trim()); return (exact.length ? exact : hits).map(h => h.i);
 }
-module.exports = { matchChats, norm };
+/** True when any word of the query is close (<=2 typos) to one of the comma-separated aliases (e.g. Whisper hears "Tibo" for "Thib"). */
+const isAlias = (query, aliases) => { const al = String(aliases || '').split(',').map(a => norm(a).trim()).filter(a => a.length >= 3); return words(query).filter(w => w.length >= 3 && !STOP.has(w)).some(w => al.some(a => w === a || lev(w, a) <= (a.length >= 5 ? 2 : 1))); };
+module.exports = { matchChats, norm, isAlias };

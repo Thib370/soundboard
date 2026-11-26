@@ -21,6 +21,7 @@ function parse(text) {
   if ((m = n.match(P1) || n.match(P2))) return { action: 'chat', target: m[1].trim(), text: cut(m, 2) };
   if ((m = n.match(new RegExp('^' + SAY + '\\s+(.+?)\\s+(?:to|a)\\s+(?:the |le |la |les )?(.+?)\\s+(?:chat|conversation)$', 'd')))) return { action: 'chat', target: m[2].trim(), text: cut(m, 1) };
   if ((m = n.match(/^(?:play|joue|lance|launch)\s+(?:the |le |la )?(.+)$/))) return { action: 'play', name: m[1].trim() };
+  if (/\b(?:check|verifie|regarde|resume|brief|quoi de neuf|what.s new|anything new)\b.*\b(?:teams|messages?|mentions?|notifs?|notifications?)\b/.test(n) || /^(?:mon |my )?(?:brief|resume)$/.test(n)) return { action: 'brief' };
   if (/^(?:stop|arrete|silence)\b/.test(n)) return { action: 'stop' };
   if (/^(?:un ?mute|unmute|reactive|active (?:le )?(?:micro|mic))/.test(n)) return { action: 'unmute' };
   if (/^(?:mute|coupe|desactive|mets? (?:le )?(?:micro|mic) (?:en )?(?:muet|sourdine))/.test(n)) return { action: 'mute' };

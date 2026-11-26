@@ -1,20 +1,26 @@
 // Teams connector: the existing Teams watcher + chat listing/sending, behind the common connector interface.
 const { Teams } = require('../teams.js');
-const { matchChats } = require('./match.js');
+const { matchChats, isAlias } = require('./match.js');
 const NAMES = () => [...document.querySelectorAll('[role=treeitem][aria-level="2"]')].map(x => (x.getAttribute('aria-labelledby') || '').split(' ').filter(Boolean).map(i => (document.getElementById(i) || {}).innerText || '').join(' | ').replace(/\s*\|\s*(\|\s*)+/g, ' | '));
+let chain = Promise.resolve();
+const locked = fn => { const r = chain.then(fn, fn); chain = r.catch(() => {}); return r; }; // one page action at a time: the brief and a send must not fight over the same tab
 class TeamsConnector extends Teams {
   get id() { return 'teams'; }
   need() { if (!this.mcp) throw new Error('Teams plugin not connected (▶ Run Teams)'); }
   /** Chats whose name matches the query: [{ index, name }] */
   async listChats(query) {
     this.need(); const names = await this.ev(NAMES, null); if (!Array.isArray(names)) throw new Error('Chat list not available');
+    const self = /^\s*(?:moi|me|myself|self|mon|my|mes|notes?)(?:\s+(?:chat|conversation|meme|même))?\s*$/i.test(query) || (this.cfg && isAlias(query, this.cfg.aliases)); // "me" / my aliases -> your own chat
+    if (self) { const mine = names.map((n, i) => ({ index: i, name: n })).filter(x => /\(Vous\)|\(You\)/.test(x.name)); if (mine.length) return mine; }
     return matchChats(names, query).map(i => ({ index: i, name: names[i] }));
   }
   async allChats() { this.need(); const n = await this.ev(NAMES, null); return Array.isArray(n) ? n : []; }
   /** Opens the chat (by exact index from listChats) and types the text; sends only when send=true. Returns the chat title. */
-  async sendMessage(index, text, send = true, expect = '') {
+  sendMessage(index, text, send = true, expect = '') { return locked(() => this._send(index, text, send, expect)); }
+  brief() { return locked(() => super.brief()); }
+  async _send(index, text, send = true, expect = '') {
     this.need(); if (!text || text.length > 2000) throw new Error('Invalid message length');
-    const opened = await this.ev(async (hit) => { const nm = x => (x.getAttribute('aria-labelledby') || '').split(' ').filter(Boolean).map(i => (document.getElementById(i) || {}).innerText || '').join(' | ').replace(/\s*\|\s*(\|\s*)+/g, ' | '); const e = [...document.querySelectorAll('[role=treeitem][aria-level="2"]')].find(x => nm(x) === hit.name); if (!e) return 'no-chat'; e.click(); await new Promise(r => setTimeout(r, 2500)); return document.title; }, typeof index === 'object' ? index : { name: String(index) });
+    const opened = await this.ev(async (hit) => { const nm = x => (x.getAttribute('aria-labelledby') || '').split(' ').filter(Boolean).map(i => (document.getElementById(i) || {}).innerText || '').join(' | ').replace(/\s*\|\s*(\|\s*)+/g, ' | '); const e = [...document.querySelectorAll('[role=treeitem][aria-level="2"]')].find(x => nm(x) === hit.name); if (!e) return 'no-chat'; e.click(); await new Promise(r => setTimeout(r, 1500)); const w = String(hit.expect || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().slice(0, 12); for (let k = 0; k < 16 && w && !document.title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(w); k++) await new Promise(r => setTimeout(r, 500)); return document.title; }, { ...(typeof index === 'object' ? index : { name: String(index) }), expect });
     if (opened === 'no-chat') throw new Error('Chat not found (list changed)');
     const nz = s => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     if (expect && !nz(opened).includes(nz(expect).slice(0, 12))) throw new Error('Opened the wrong chat (' + opened + ')'); // list order changed between search and click: never type into another chat

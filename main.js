@@ -53,7 +53,7 @@ function showPopup(men) {
   } catch (e) { closePopup(); }
 }
 const teams = new Teams((ev, d) => { if (ev === 'status') send('teams-status', d); else if (ev === 'mention') showPopup(d); else if (ev === 'call') send('teams-call', d); });
-const router = createRouter({ getConnector: () => teams, speak: t => voice.speak(t), play: id => send('play', id), stop: () => send('stop'), sounds: () => load().sounds || [], status: s => { send('voice-status', s); try { fs.appendFileSync(path.join(data(), 'voice.log'), new Date().toISOString() + ' ' + s.state + ' ' + (s.msg || s.text || '') + '\n'); } catch {} }, model: (load().teams || {}).model, listen: () => send('voice-listen'), llmUrl: () => (load().voice || {}).ollamaUrl });
+const router = createRouter({ getConnector: () => teams, speak: t => voice.speak(t), play: id => send('play', id), stop: () => send('stop'), sounds: () => load().sounds || [], status: s => { send('voice-status', s); try { fs.appendFileSync(path.join(data(), 'voice.log'), new Date().toISOString() + ' ' + s.state + ' ' + (s.msg || s.text || '') + '\n'); } catch {} }, model: (load().teams || {}).model, listen: () => send('voice-listen'), brief: () => runBrief(), llmUrl: () => (load().voice || {}).ollamaUrl });
 async function voiceAudio(buf) {
   try {
     const f = path.join(app.getPath('temp'), 'sb-voice-' + Date.now() + '.wav'); fs.writeFileSync(f, Buffer.from(buf));
