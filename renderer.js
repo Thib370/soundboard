@@ -15,7 +15,13 @@ function render() {
     g.type = 'range'; g.min = 0.2; g.max = 4; g.step = 0.1; g.value = s.gain ?? 1; gv.textContent = '×' + (+g.value).toFixed(1); eng.setGain(s.id, +g.value);
     g.oninput = () => { s.gain = +g.value; gv.textContent = '×' + s.gain.toFixed(1); eng.setGain(s.id, s.gain); }; g.onchange = () => save(); gl.append('boost ', g, gv);
     const x = document.createElement('button'); x.className = 'del'; x.textContent = 'remove'; x.onclick = () => { eng.stop(s.id); cfg.sounds.splice(i, 1); save(); render(); };
-    d.append(b, gl, t, x); $('grid').append(d);
+    const rn = document.createElement('button'); rn.className = 'del'; rn.textContent = 'rename';
+    rn.onclick = () => {
+      const inp = document.createElement('input'); inp.className = 'rename'; inp.value = s.name; inp.maxLength = 80; b.replaceWith(inp); inp.focus(); inp.select();
+      let done = false; const fin = ok => { if (done) return; done = true; const n = inp.value.trim(); if (ok && n) { s.name = n; save(); } render(); };
+      inp.onkeydown = e => { if (e.key === 'Enter') fin(true); else if (e.key === 'Escape') fin(false); }; inp.onblur = () => fin(true);
+    };
+    d.append(b, gl, t, rn, x); $('grid').append(d);
   });
 }
 async function addSound(name, path) { const s = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name, path }; await loadSound(s); cfg.sounds.push(s); await save(); render(); }
